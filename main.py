@@ -1,13 +1,16 @@
 import os
+import secrets
 import psycopg
 
+from typing import Literal
+
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
-from db import enqueue_agent_command
+from db import enqueue_agent_command, finish_agent_command, list_pending_commands
 from llm import DEEPSEEK_MODEL, LLMError, ask_llm
-from router import detect_command
+from router import ALLOWED_COMMANDS, detect_command
 
 
 # ============================================================
@@ -232,56 +235,48 @@ def agent_status():
         "agent": "JARVIS Agent"
     }
 
+
+# ============================================================
+# FILA DO AGENTE (protegida por token)
+# ============================================================
+
+def require_agent_token(authorization: str = Header(default="")):
+    expected = os.getenv("AGENT_TOKEN")
+
+    # Sem token configurado, a fila fica fechada em vez de aberta para todos.
+    if not expected:
+        raise HTTPException(status_code=503, detail="AGENT_TOKEN não configurado")
+
+    if not secrets.compare_digest(authorization, f"Bearer {expected}"):
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+
 class AgentCommand(BaseModel):
     command: str
 
 
-@app.post("/agent/command")
+class CommandResult(BaseModel):
+    status: Literal["completed", "failed", "rejected"] = "completed"
+    result: str | None = None
+
+
+@app.post("/agent/command", dependencies=[Depends(require_agent_token)])
 def create_agent_command(request: AgentCommand):
-    database_url = os.getenv("POSTGRES_URL")
 
-    if not database_url:
-        raise RuntimeError("POSTGRES_URL não encontrada")
+    if request.command not in ALLOWED_COMMANDS:
+        raise HTTPException(status_code=400, detail="Comando não permitido")
 
-    with psycopg.connect(database_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO agent_commands (command)
-                VALUES (%s)
-                RETURNING id, command, status
-                """,
-                (request.command,)
-            )
-
-            result = cur.fetchone()
-            conn.commit()
+    command_id = enqueue_agent_command(request.command)
 
     return {
-        "id": result[0],
-        "command": result[1],
-        "status": result[2]
+        "id": command_id,
+        "command": request.command,
+        "status": "pending"
     }
 
-@app.get("/agent/commands")
+
+@app.get("/agent/commands", dependencies=[Depends(require_agent_token)])
 def get_agent_commands():
-    database_url = os.getenv("POSTGRES_URL")
-
-    if not database_url:
-        raise RuntimeError("POSTGRES_URL não encontrada")
-
-    with psycopg.connect(database_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id, command, status, created_at
-                FROM agent_commands
-                WHERE status = 'pending'
-                ORDER BY id ASC
-                """
-            )
-
-            rows = cur.fetchall()
 
     return [
         {
@@ -290,42 +285,29 @@ def get_agent_commands():
             "status": row[2],
             "created_at": row[3].isoformat()
         }
-        for row in rows
+        for row in list_pending_commands()
     ]
 
-@app.post("/agent/commands/{command_id}/complete")
-def complete_agent_command(command_id: int):
-    database_url = os.getenv("POSTGRES_URL")
 
-    if not database_url:
-        raise RuntimeError("POSTGRES_URL não encontrada")
+@app.post("/agent/commands/{command_id}/complete", dependencies=[Depends(require_agent_token)])
+def complete_agent_command(command_id: int, request: CommandResult | None = None):
 
-    with psycopg.connect(database_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE agent_commands
-                SET status = 'completed',
-                    executed_at = NOW()
-                WHERE id = %s
-                  AND status = 'pending'
-                RETURNING id, command, status
-                """,
-                (command_id,)
-            )
+    request = request or CommandResult()
 
-            result = cur.fetchone()
-            conn.commit()
+    # Limita o texto salvo para que um erro enorme não encha o banco.
+    result = request.result[:500] if request.result else None
 
-    if not result:
+    row = finish_agent_command(command_id, request.status, result)
+
+    if not row:
         return {
             "success": False,
-            "message": "Comando não encontrado ou já concluído"
+            "message": "Comando não encontrado ou já finalizado"
         }
 
     return {
         "success": True,
-        "id": result[0],
-        "command": result[1],
-        "status": result[2]
+        "id": row[0],
+        "command": row[1],
+        "status": row[2]
     }

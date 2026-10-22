@@ -100,6 +100,7 @@ O arquivo `.env` local precisa conter as variáveis necessárias ao processo exe
 ```dotenv
 DEEPSEEK_API_KEY=COLOQUE_SUA_CHAVE_LOCAL
 POSTGRES_URL=COLOQUE_SUA_STRING_DE_CONEXAO_NEON
+AGENT_TOKEN=COLOQUE_UM_TOKEN_ALEATORIO
 ```
 
 Os valores acima são marcadores ilustrativos, não credenciais válidas. Substitua-os localmente pelos valores corretos e **nunca os cole em issues, commits ou mensagens públicas**.
@@ -133,7 +134,8 @@ CREATE TABLE agent_commands (
     command TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    executed_at TIMESTAMPTZ
+    executed_at TIMESTAMPTZ,
+    result TEXT  -- adicionada no passo 2 (sql/agent_commands_result.sql)
 );
 ```
 
@@ -154,7 +156,7 @@ WHERE status = 'pending'
 ORDER BY id ASC;
 ```
 
-A conclusão atualiza apenas registros que ainda estejam `pending`. Comandos não autorizados podem permanecer pendentes e reaparecer a cada consulta; recomenda-se implementar estados como `rejected` ou `failed` e evitar reprocessamento infinito.
+A conclusão atualiza apenas registros que ainda estejam `pending`. O agente fecha cada comando com um destes estados: `completed` (ação executada), `failed` (a ação deu erro) ou `rejected` (comando fora da lista permitida). A coluna `result` guarda a descrição do resultado. Assim nenhum comando fica reaparecendo na fila.
 
 ## 8. API FastAPI
 
@@ -170,7 +172,7 @@ A conclusão atualiza apenas registros que ainda estejam `pending`. Comandos nã
 | `GET` | `/agent/commands` | Retorna comandos pendentes. |
 | `POST` | `/agent/commands/{command_id}/complete` | Marca um comando pendente como concluído. |
 
-Os endpoints de agente foram implementados para integrar a fila Neon ao computador local. No estado documentado, eles não tinham autenticação própria. **Isso precisa ser corrigido antes de considerar a API segura para uso público:** adicionar um token compartilhado entre agente e API, validar as chamadas e limitar os dados retornados.
+As rotas `/agent/command`, `/agent/commands` e `/agent/commands/{command_id}/complete` exigem o cabeçalho `Authorization: Bearer <AGENT_TOKEN>`. O mesmo token fica no `.env` do PC e nas variáveis da Vercel. Sem `AGENT_TOKEN` configurado no servidor, essas rotas respondem 503 (a fila fica fechada). `/agent/command` só aceita comandos da lista permitida (`ALLOWED_COMMANDS` em `router.py`). `/agent/status` continua público.
 
 Não crie um endpoint que aceite e execute livremente texto como `cmd`, PowerShell ou shell. Prefira nomes de ações e parâmetros validados por uma lista permitida.
 
@@ -194,7 +196,8 @@ O agente conhecido:
 - Reconhece `open_app:notepad` e `open_website:whatsapp`.
 - Abre o Bloco de Notas usando `notepad.exe`.
 - Abre o WhatsApp Web em uma nova janela/aba do navegador padrão por meio de `cmd /c start`.
-- Marca o comando como concluído após iniciar a ação.
+- Envia o `AGENT_TOKEN` do `.env` em todas as chamadas.
+- Fecha cada comando como `completed`, `failed` ou `rejected`, com a descrição do resultado.
 - Registra no terminal comandos recebidos, ações e erros.
 
 Iniciar no PowerShell, a partir da raiz do projeto:
@@ -310,6 +313,13 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - Falhas do DeepSeek ou do Neon devolvem uma frase amigável, sem traceback.
 - Cada chamada de IA registra tokens de entrada, de cache e de saída na tabela `ai_usage` (criar com `sql/ai_usage.sql`) e no log da Vercel (`[USO DE IA]`). Essa tabela é a base da análise de custos antes de contratar outras IAs.
 - Na Vercel, configure `DEEPSEEK_API_KEY` e, se quiser, remova `GEMINI_API_KEY`.
+
+### Atualização de 22/10/2026: fila protegida (passo 2)
+
+- Rotas da fila exigem `AGENT_TOKEN` (ver seção 8).
+- Novos estados `failed` e `rejected` e coluna `result` (rodar `sql/agent_commands_result.sql` no Neon).
+- Gere o token no PowerShell com `python -c "import secrets; print(secrets.token_urlsafe(32))"` e coloque o mesmo valor no `.env` e na Vercel.
+- API e agente precisam ser atualizados juntos: o agente antigo não envia token e passa a receber 401.
 
 ## 13. Histórico de resultados e problemas
 

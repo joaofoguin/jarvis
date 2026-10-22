@@ -27,3 +27,42 @@ def enqueue_agent_command(command):
             conn.commit()
 
     return command_id
+
+
+def list_pending_commands():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, command, status, created_at
+                FROM agent_commands
+                WHERE status = 'pending'
+                ORDER BY id ASC
+                """
+            )
+
+            return cur.fetchall()
+
+
+def finish_agent_command(command_id, status, result):
+    """Fecha um comando pendente; retorna None se ele não existir ou já tiver sido fechado."""
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE agent_commands
+                SET status = %s,
+                    result = %s,
+                    executed_at = NOW()
+                WHERE id = %s
+                  AND status = 'pending'
+                RETURNING id, command, status
+                """,
+                (status, result, command_id)
+            )
+
+            row = cur.fetchone()
+            conn.commit()
+
+    return row

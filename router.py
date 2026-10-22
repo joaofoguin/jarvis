@@ -16,6 +16,8 @@ COMMANDS = [
     }
 ]
 
+ALLOWED_COMMANDS = {item["command"] for item in COMMANDS}
+
 ACTION_PATTERN = re.compile(
     r"\b(abr(a|e|ir)|inici\w*|execut\w*|lanc\w*|carreg\w*)\b"
 )

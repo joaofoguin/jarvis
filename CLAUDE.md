@@ -6,6 +6,7 @@
 - Leia `JARVIS_DOCUMENTACAO.md` antes de mudar a arquitetura.
 - Comandos conhecidos são resolvidos em `router.py`, sem IA. Só perguntas abertas vão para `llm.py`.
 - Toda chamada de IA registra tokens na tabela `ai_usage` (`sql/ai_usage.sql`). Mantenha esse registro em qualquer novo provedor.
+- As rotas da fila exigem `AGENT_TOKEN`. O agente fecha cada comando como `completed`, `failed` ou `rejected`.
 - O agente local só executa ações de uma lista permitida. Nunca execute texto livre como comando de terminal.
 - Nunca versione `.env`, chaves ou strings de conexão.
 - Testes: `pip install -r requirements-dev.txt` e `python -m pytest`. Não chame APIs reais nos testes.
