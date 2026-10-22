@@ -1,5 +1,7 @@
 import os
+import shutil
 import time
+import threading
 import subprocess
 import requests
 
@@ -11,6 +13,18 @@ load_dotenv()
 JARVIS_URL = "https://jarvis-one-opal-45.vercel.app"
 
 AGENT_TOKEN = os.getenv("AGENT_TOKEN")
+
+# Pasta onde o Claude Code pode criar e alterar arquivos. Nada fora dela.
+JARVIS_WORKSPACE = os.getenv("JARVIS_WORKSPACE")
+
+CLAUDE_CODE_PREFIX = "claude_code:"
+CLAUDE_CODE_TIMEOUT = 600
+
+# Sem Bash: o Claude Code só lê e edita arquivos, não executa comandos.
+CLAUDE_CODE_TOOLS = "Read,Edit,Write,Glob,Grep"
+
+# Tarefas do Claude Code em andamento, para não repetir enquanto o comando segue pendente.
+running_ids = set()
 
 
 def auth_headers():
@@ -57,7 +71,75 @@ def run_action(command_text):
     return None
 
 
+def run_claude_code(command_id, task):
+    """Roda o Claude Code em segundo plano e informa o resultado quando terminar."""
+
+    try:
+        status, result = call_claude_code(task)
+        finish_command(command_id, status, result)
+
+    except Exception as error:
+        print(f"[ERRO] {error}")
+
+    finally:
+        running_ids.discard(command_id)
+
+
+def call_claude_code(task):
+
+    if not JARVIS_WORKSPACE or not os.path.isdir(JARVIS_WORKSPACE):
+        return "failed", "JARVIS_WORKSPACE não configurado ou a pasta não existe"
+
+    claude = shutil.which("claude")
+
+    if not claude:
+        return "failed", "Claude Code não encontrado. Instale e faça login com o comando claude"
+
+    print(f"[AÇÃO] Claude Code: {task}")
+
+    try:
+        completed = subprocess.run(
+            [
+                claude,
+                "-p",
+                f"{task}\n\nAo terminar, resuma em português, em poucas frases, o que foi feito.",
+                "--allowedTools",
+                CLAUDE_CODE_TOOLS,
+                "--disallowedTools",
+                "Bash",
+                "--output-format",
+                "text"
+            ],
+            cwd=JARVIS_WORKSPACE,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=CLAUDE_CODE_TIMEOUT
+        )
+
+    except subprocess.TimeoutExpired:
+        return "failed", f"Claude Code passou de {CLAUDE_CODE_TIMEOUT} segundos"
+
+    if completed.returncode != 0:
+        return "failed", (completed.stderr or completed.stdout).strip()[-500:]
+
+    return "completed", completed.stdout.strip()[-500:]
+
+
 def execute_command(command_id, command_text):
+
+    if command_text.startswith(CLAUDE_CODE_PREFIX):
+
+        if command_id not in running_ids:
+            running_ids.add(command_id)
+
+            threading.Thread(
+                target=run_claude_code,
+                args=(command_id, command_text[len(CLAUDE_CODE_PREFIX):]),
+                daemon=True
+            ).start()
+
+        return
 
     try:
         result = run_action(command_text)

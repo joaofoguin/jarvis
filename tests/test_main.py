@@ -9,7 +9,7 @@ from llm import LLMError
 def client(monkeypatch):
     queued = []
     monkeypatch.setattr(main, "enqueue_agent_command", queued.append)
-    monkeypatch.setattr(main, "ask_llm", lambda question, source: f"IA: {question}")
+    monkeypatch.setattr(main, "ask_llm", lambda question, source: (f"IA: {question}", None))
     test_client = TestClient(main.app)
     test_client.queued = queued
     return test_client
@@ -72,3 +72,12 @@ def test_queue_failure_gives_friendly_answer(client, monkeypatch):
     assert response.json() == {
         "answer": "Desculpe, senhor. Não consegui enviar o comando ao computador."
     }
+
+
+def test_action_chosen_by_ai_is_queued(client, monkeypatch):
+    monkeypatch.setattr(main, "ask_llm", lambda question, source: ("Certo, senhor.", "claude_code:criar hello.py"))
+
+    response = client.post("/jarvis", json={"question": "cria um hello world"})
+
+    assert response.json() == {"answer": "Certo, senhor."}
+    assert client.queued == ["claude_code:criar hello.py"]

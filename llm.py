@@ -1,7 +1,9 @@
+import json
 import os
 import requests
 
 from db import get_connection
+from router import COMMANDS, command_for_tool
 
 
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
@@ -22,7 +24,37 @@ Pode chamar o usuário de "senhor" quando apropriado.
 IDIOMA: responda sempre em português do Brasil.
 
 VOZ: sua resposta será falada pela Alexa. Não use Markdown, emojis nem listas longas.
-Seja natural e conciso."""
+Seja natural e conciso.
+
+AÇÕES: quando o usuário pedir algo no computador dele, use a ferramenta correspondente.
+Use claude_code só para pedidos de programação, como criar ou alterar código."""
+
+
+def tool(name, description, properties=None, required=None):
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties or {},
+                "required": required or []
+            }
+        }
+    }
+
+
+# Ações que a IA pode escolher; cada uma vira um comando da lista permitida.
+TOOLS = [tool(item["tool"], item["description"]) for item in COMMANDS] + [
+    tool(
+        "claude_code",
+        "Pede ao Claude Code, no computador do usuário, para criar ou alterar código "
+        "na pasta de trabalho do JARVIS.",
+        {"task": {"type": "string", "description": "A tarefa de programação, completa e em português."}},
+        ["task"]
+    )
+]
 
 
 class LLMError(Exception):
@@ -30,6 +62,7 @@ class LLMError(Exception):
 
 
 def ask_llm(question, source):
+    """Retorna (resposta falada, comando). O comando é None quando a IA só respondeu."""
     api_key = os.getenv("DEEPSEEK_API_KEY")
 
     if not api_key:
@@ -45,6 +78,7 @@ def ask_llm(question, source):
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": question}
                 ],
+                "tools": TOOLS,
                 "max_tokens": MAX_TOKENS
             },
             timeout=TIMEOUT_SECONDS
@@ -53,14 +87,30 @@ def ask_llm(question, source):
         response.raise_for_status()
 
         data = response.json()
-        answer = data["choices"][0]["message"]["content"].strip()
+        message = data["choices"][0]["message"]
+        tool_calls = message.get("tool_calls") or []
+
+        if tool_calls:
+            function = tool_calls[0]["function"]
+            action = command_for_tool(function["name"], json.loads(function.get("arguments") or "{}"))
+        else:
+            action = None
+
+        answer = (message.get("content") or "").strip()
 
     except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as error:
         raise LLMError(f"Falha ao consultar o DeepSeek: {error!r}") from error
 
     log_usage(source, data.get("model", DEEPSEEK_MODEL), data.get("usage") or {})
 
-    return answer
+    if action:
+        command, spoken = action
+        return spoken, command
+
+    if not answer:
+        raise LLMError("O DeepSeek não devolveu texto nem uma ação válida")
+
+    return answer, None
 
 
 def log_usage(source, model, usage):

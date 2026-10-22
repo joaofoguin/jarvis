@@ -88,3 +88,9 @@ def test_complete_rejects_unknown_status(client):
 
 def test_status_route_stays_public(client):
     assert client.get("/agent/status").status_code == 200
+
+
+def test_create_accepts_claude_code_tasks(client):
+    response = client.post("/agent/command", json={"command": "claude_code:criar hello.py"}, headers=AUTH)
+
+    assert response.status_code == 200
