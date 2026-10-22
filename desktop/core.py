@@ -1,31 +1,51 @@
+import browser
 import google_data
 import reports
 
 from agent.agent import call_claude_code, run_action
-from llm import GOOGLE_TOOLS, TOOLS, LLMError, ask_llm
+from llm import BROWSER_TOOLS, GOOGLE_TOOLS, TOOLS, LLMError, ask_llm
 from router import (
     CLAUDE_CODE_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
-    detect_command, detect_google, normalize
+    INSTAGRAM_MESSAGES, WHATSAPP_PREFIX,
+    detect_browser, detect_command, detect_google, normalize, whatsapp_args
 )
 
 
 # Mensagens anteriores enviadas à IA. Mais contexto custa mais tokens.
 HISTORY_LIMIT = 6
 
+# Mensagem do WhatsApp esperando o "sim" do usuário: (contato, texto) ou None.
+pending_message = None
+
+CONFIRMATIONS = {"sim", "s", "pode", "pode enviar", "pode mandar", "envia", "manda", "confirmo", "ok"}
+
 
 def reply_to(text, history):
     """Responde a uma mensagem do chat e executa a ação no próprio notebook.
 
     Retorna (resposta, tarefa). A tarefa é uma função sem argumentos que demora
-    (Claude Code, Google) e deve rodar em segundo plano; ela devolve o texto
+    (Claude Code, Google, navegador) e deve rodar em segundo plano; ela devolve o texto
     para mostrar no chat. É None quando não há nada a esperar.
     """
 
-    match = detect_command(text) or detect_google(text)
+    global pending_message
+
+    if pending_message:
+        contact, message = pending_message
+        pending_message = None
+
+        if normalize(text).strip(" .!") in CONFIRMATIONS:
+            return "Enviando, senhor.", lambda: run_browser(browser.whatsapp_send, contact, message)
+
+        # Qualquer outra resposta cancela; se for um pedido novo, ele segue normalmente.
+        if normalize(text).strip(" .!") in {"nao", "n", "cancela", "cancelar"}:
+            return "Certo, senhor. Não enviei.", None
+
+    match = detect_browser(text) or detect_command(text) or detect_google(text)
 
     if not match:
         try:
-            answer, command = ask_llm(text, "desktop", history[-HISTORY_LIMIT:], TOOLS + GOOGLE_TOOLS)
+            answer, command = ask_llm(text, "desktop", history[-HISTORY_LIMIT:], TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS)
 
         except LLMError as error:
             print("ERRO NA IA:", repr(error))
@@ -48,6 +68,14 @@ def reply_to(text, history):
 
     if command == GOOGLE_CLASSROOM:
         return answer, lambda: run_google(google_data.classroom_summary, None, text)
+
+    if command.startswith(WHATSAPP_PREFIX):
+        contact, message = whatsapp_args(command)
+        pending_message = browser.contact_name(contact), message
+        return f"Enviar \"{message}\" para {pending_message[0]} no WhatsApp? Responda \"sim\" para confirmar.", None
+
+    if command == INSTAGRAM_MESSAGES:
+        return answer, lambda: run_browser(browser.instagram_unread)
 
     if command == GOOGLE_YOUTUBE:
         return answer, lambda: with_pdf(text, "Relatorio YouTube", run_google(google_data.youtube_summary, text))
@@ -79,6 +107,15 @@ def run_google(function, *args):
     except Exception as error:
         print("ERRO NO GOOGLE:", repr(error))
         return f"Desculpe, senhor. Não consegui consultar o Google: {error}"
+
+
+def run_browser(function, *args):
+    try:
+        return function(*args)
+
+    except Exception as error:
+        print("ERRO NO NAVEGADOR:", repr(error))
+        return f"Desculpe, senhor. Não consegui usar o navegador: {error}"
 
 
 def with_pdf(request, title, result):

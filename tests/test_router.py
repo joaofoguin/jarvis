@@ -1,6 +1,9 @@
 import pytest
 
-from router import command_for_tool, detect_command, detect_google, is_allowed_command
+from router import (
+    INSTAGRAM_MESSAGES, WHATSAPP_PREFIX,
+    command_for_tool, detect_browser, detect_command, detect_google, is_allowed_command, whatsapp_args
+)
 
 
 @pytest.mark.parametrize("question, command", [
@@ -72,3 +75,35 @@ def test_agenda_tool_clamps_days():
 @pytest.mark.parametrize("question", ["como estão os insights do meu vídeo", "métricas do meu canal", "abre meu youtube studio"])
 def test_detects_youtube_requests(question):
     assert detect_google(question)[0] == "google_youtube"
+
+
+@pytest.mark.parametrize("question, contact, message", [
+    ("mande mensagem para minha namorada no whatsapp dizendo Oi amor, já estou em casa",
+     "minha namorada", "Oi amor, já estou em casa"),
+    ("Jarvis, manda uma mensagem pro Amor no zap: Oi amor, já estou em casa", "Amor", "Oi amor, já estou em casa"),
+    ("envie no WhatsApp para Mãe: chego às 18h", "Mãe", "chego às 18h"),
+])
+def test_detects_whatsapp_messages(question, contact, message):
+    command, _ = detect_browser(question)
+
+    assert command.startswith(WHATSAPP_PREFIX)
+    assert whatsapp_args(command) == (contact, message)
+
+
+@pytest.mark.parametrize("question", [
+    "mande mensagem para minha mãe dizendo oi",
+    "abra o whatsapp",
+    "o que é o instagram?",
+])
+def test_ignores_non_browser_requests(question):
+    assert detect_browser(question) is None
+
+
+def test_detects_instagram_messages():
+    assert detect_browser("verifique se há novas mensagens no instagram")[0] == INSTAGRAM_MESSAGES
+    assert detect_browser("tenho mensagem nova no insta?")[0] == INSTAGRAM_MESSAGES
+
+
+def test_whatsapp_tool_validates_arguments():
+    assert command_for_tool("enviar_whatsapp", {"contato": "Amor", "mensagem": ""}) is None
+    assert whatsapp_args(command_for_tool("enviar_whatsapp", {"contato": "Amor", "mensagem": "oi"})[0]) == ("Amor", "oi")
