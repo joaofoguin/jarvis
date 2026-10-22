@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from db import enqueue_agent_command, finish_agent_command, list_pending_commands
 from llm import DEEPSEEK_MODEL, LLMError, ask_llm
-from router import ALLOWED_COMMANDS, detect_command
+from router import detect_command, is_allowed_command
 
 
 # ============================================================
@@ -49,28 +49,33 @@ def home():
 # ============================================================
 
 def handle_question(question, source):
-    """Comandos conhecidos vão direto para a fila; o resto vai para a IA."""
+    """Comandos conhecidos vão direto para a fila; o resto vai para a IA, que pode escolher uma ação."""
 
     match = detect_command(question)
 
-    if match:
-        command, answer = match
-
+    if not match:
         try:
-            enqueue_agent_command(command)
+            answer, command = ask_llm(question, source)
 
-        except (psycopg.Error, RuntimeError) as error:
-            print("ERRO AO ENFILEIRAR COMANDO:", repr(error))
-            return "Desculpe, senhor. Não consegui enviar o comando ao computador."
+        except LLMError as error:
+            print("ERRO NA IA:", repr(error))
+            return "Desculpe, senhor. Minha inteligência está indisponível no momento."
 
-        return answer
+        if not command:
+            return answer
+
+        match = command, answer
+
+    command, answer = match
 
     try:
-        return ask_llm(question, source)
+        enqueue_agent_command(command)
 
-    except LLMError as error:
-        print("ERRO NA IA:", repr(error))
-        return "Desculpe, senhor. Minha inteligência está indisponível no momento."
+    except (psycopg.Error, RuntimeError) as error:
+        print("ERRO AO ENFILEIRAR COMANDO:", repr(error))
+        return "Desculpe, senhor. Não consegui enviar o comando ao computador."
+
+    return answer
 
 
 # ============================================================
@@ -263,7 +268,7 @@ class CommandResult(BaseModel):
 @app.post("/agent/command", dependencies=[Depends(require_agent_token)])
 def create_agent_command(request: AgentCommand):
 
-    if request.command not in ALLOWED_COMMANDS:
+    if not is_allowed_command(request.command):
         raise HTTPException(status_code=400, detail="Comando não permitido")
 
     command_id = enqueue_agent_command(request.command)

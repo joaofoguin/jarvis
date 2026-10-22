@@ -31,7 +31,7 @@ def test_returns_answer_and_logs_usage(monkeypatch):
         "usage": {"prompt_tokens": 50, "completion_tokens": 5}
     }))
 
-    assert llm.ask_llm("oi", "jarvis") == "Olá, senhor."
+    assert llm.ask_llm("oi", "jarvis") == ("Olá, senhor.", None)
     assert logged == [("jarvis", "deepseek-chat", {"prompt_tokens": 50, "completion_tokens": 5})]
 
 
@@ -53,3 +53,51 @@ def test_log_usage_never_raises(monkeypatch):
     monkeypatch.delenv("POSTGRES_URL", raising=False)
 
     llm.log_usage("jarvis", "deepseek-chat", {"prompt_tokens": 1})
+
+
+def tool_call_response(name, arguments):
+    return lambda *args, **kwargs: FakeResponse({
+        "choices": [{"message": {
+            "content": "",
+            "tool_calls": [{"function": {"name": name, "arguments": arguments}}]
+        }}],
+        "usage": {}
+    })
+
+
+def test_tool_call_becomes_command(monkeypatch):
+    monkeypatch.setattr(llm, "log_usage", lambda *args: None)
+    monkeypatch.setattr(llm.requests, "post", tool_call_response("open_notepad", "{}"))
+
+    assert llm.ask_llm("preciso anotar algo", "alexa") == ("Abrindo o Bloco de Notas, senhor.", "open_app:notepad")
+
+
+def test_claude_code_tool_carries_task(monkeypatch):
+    monkeypatch.setattr(llm, "log_usage", lambda *args: None)
+    monkeypatch.setattr(llm.requests, "post", tool_call_response("claude_code", '{"task": "criar hello.py"}'))
+
+    answer, command = llm.ask_llm("cria um hello world em python", "alexa")
+
+    assert command == "claude_code:criar hello.py"
+
+
+def test_unknown_tool_without_text_is_an_error(monkeypatch):
+    monkeypatch.setattr(llm, "log_usage", lambda *args: None)
+    monkeypatch.setattr(llm.requests, "post", tool_call_response("format_disk", "{}"))
+
+    with pytest.raises(llm.LLMError):
+        llm.ask_llm("formate o disco", "alexa")
+
+
+def test_tools_are_sent_to_deepseek(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(llm, "log_usage", lambda *args: None)
+
+    def post(url, **kwargs):
+        sent.update(kwargs["json"])
+        return FakeResponse({"choices": [{"message": {"content": "ok"}}]})
+
+    monkeypatch.setattr(llm.requests, "post", post)
+    llm.ask_llm("oi", "jarvis")
+
+    assert {t["function"]["name"] for t in sent["tools"]} == {"open_notepad", "open_whatsapp", "claude_code"}

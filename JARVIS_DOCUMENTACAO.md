@@ -101,6 +101,7 @@ O arquivo `.env` local precisa conter as variáveis necessárias ao processo exe
 DEEPSEEK_API_KEY=COLOQUE_SUA_CHAVE_LOCAL
 POSTGRES_URL=COLOQUE_SUA_STRING_DE_CONEXAO_NEON
 AGENT_TOKEN=COLOQUE_UM_TOKEN_ALEATORIO
+JARVIS_WORKSPACE=C:\Users\joaop\Documents\Code\jarvis-workspace
 ```
 
 Os valores acima são marcadores ilustrativos, não credenciais válidas. Substitua-os localmente pelos valores corretos e **nunca os cole em issues, commits ou mensagens públicas**.
@@ -172,7 +173,7 @@ A conclusão atualiza apenas registros que ainda estejam `pending`. O agente fec
 | `GET` | `/agent/commands` | Retorna comandos pendentes. |
 | `POST` | `/agent/commands/{command_id}/complete` | Marca um comando pendente como concluído. |
 
-As rotas `/agent/command`, `/agent/commands` e `/agent/commands/{command_id}/complete` exigem o cabeçalho `Authorization: Bearer <AGENT_TOKEN>`. O mesmo token fica no `.env` do PC e nas variáveis da Vercel. Sem `AGENT_TOKEN` configurado no servidor, essas rotas respondem 503 (a fila fica fechada). `/agent/command` só aceita comandos da lista permitida (`ALLOWED_COMMANDS` em `router.py`). `/agent/status` continua público.
+As rotas `/agent/command`, `/agent/commands` e `/agent/commands/{command_id}/complete` exigem o cabeçalho `Authorization: Bearer <AGENT_TOKEN>`. O mesmo token fica no `.env` do PC e nas variáveis da Vercel. Sem `AGENT_TOKEN` configurado no servidor, essas rotas respondem 503 (a fila fica fechada). `/agent/command` só aceita comandos da lista permitida (`is_allowed_command` em `router.py`). `/agent/status` continua público.
 
 Não crie um endpoint que aceite e execute livremente texto como `cmd`, PowerShell ou shell. Prefira nomes de ações e parâmetros validados por uma lista permitida.
 
@@ -230,6 +231,7 @@ O estado `online` informado por `/agent/status` não comprova por si só que o p
 |---|---|---|
 | `open_app:notepad` | Abre o Bloco de Notas no PC que executa o agente. | Testado com sucesso. |
 | `open_website:whatsapp` | Abre `https://web.whatsapp.com` no navegador padrão. | O agente reconheceu o comando após ser reiniciado; a abertura do site foi prevista pelo código. |
+| `claude_code:<tarefa>` | Roda o Claude Code na pasta `JARVIS_WORKSPACE`, só lendo e editando arquivos, e devolve um resumo. | Implementado no passo 3; ainda não testado no PC. |
 
 Os comandos são strings internas da fila. A linguagem natural dita à Alexa não é, por si só, executada no Windows: a API precisa converter a solicitação em uma ação permitida e enfileirá-la.
 
@@ -320,6 +322,15 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - Novos estados `failed` e `rejected` e coluna `result` (rodar `sql/agent_commands_result.sql` no Neon).
 - Gere o token no PowerShell com `python -c "import secrets; print(secrets.token_urlsafe(32))"` e coloque o mesmo valor no `.env` e na Vercel.
 - API e agente precisam ser atualizados juntos: o agente antigo não envia token e passa a receber 401.
+
+### Atualização de 22/10/2026: a IA escolhe as ações (passo 3)
+
+- O DeepSeek recebe as ações como ferramentas (function calling): `open_notepad`, `open_whatsapp` e `claude_code`. Quando a IA escolhe uma, a API enfileira o comando correspondente da lista permitida. Assim frases como "preciso anotar uma coisa" também abrem o Bloco de Notas.
+- O roteador local continua primeiro, sem gastar tokens. Ele também reconhece "peça ao Claude para ...", "manda pro Claude Code pra ..." e frases parecidas.
+- Novo comando `claude_code:<tarefa>` (até 1000 caracteres). O agente roda `claude -p` em segundo plano, dentro da pasta `JARVIS_WORKSPACE`, com o login da assinatura do Claude, e devolve um resumo como resultado do comando.
+- O Claude Code só pode ler e editar arquivos (`Read`, `Edit`, `Write`, `Glob`, `Grep`), e o Bash fica bloqueado. Ele não executa programas nem testes. Liberar a execução de testes é uma decisão futura.
+- Limite de 10 minutos por tarefa. Se o agente for reiniciado no meio de uma tarefa, ela roda de novo, porque continua `pending`.
+- Requisitos no PC: Claude Code instalado e logado (`claude` no PowerShell), e a pasta de `JARVIS_WORKSPACE` criada.
 
 ## 13. Histórico de resultados e problemas
 

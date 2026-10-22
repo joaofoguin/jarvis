@@ -1,6 +1,6 @@
 import pytest
 
-from router import detect_command
+from router import detect_command, is_allowed_command
 
 
 @pytest.mark.parametrize("question, command", [
@@ -26,3 +26,23 @@ def test_detects_known_commands(question, command):
 ])
 def test_ignores_questions_and_unknown_commands(question):
     assert detect_command(question) is None
+
+
+@pytest.mark.parametrize("question, task", [
+    ("Peça ao Claude para criar um script que soma dois números", "criar um script que soma dois números"),
+    ("jarvis, manda pro claude code pra criar hello.py", "criar hello.py"),
+    ("pede pro Claude que Faça Testes", "Faça Testes"),
+])
+def test_detects_claude_code_tasks(question, task):
+    assert detect_command(question)[0] == f"claude_code:{task}"
+
+
+@pytest.mark.parametrize("command, allowed", [
+    ("open_app:notepad", True),
+    ("claude_code:criar hello.py", True),
+    ("claude_code:   ", False),
+    ("claude_code:" + "x" * 1001, False),
+    ("cmd:del C:\\", False),
+])
+def test_is_allowed_command(command, allowed):
+    assert is_allowed_command(command) is allowed
