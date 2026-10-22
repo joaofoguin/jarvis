@@ -39,3 +39,42 @@ def test_contact_aliases(monkeypatch):
     assert browser.contact_name("minha namorada") == "Amor"
     assert browser.contact_name("minha mãe") == "Mãe"
     assert browser.contact_name("Pedro") == "Pedro"
+
+
+def test_browser_choice_is_read_when_opening(monkeypatch):
+    import sys
+    import types
+
+    launched = {}
+
+    class FakeContext:
+        pages = []
+
+        def new_page(self):
+            return types.SimpleNamespace(goto=lambda url: None)
+
+        def close(self):
+            pass
+
+    class FakePlaywright:
+        chromium = types.SimpleNamespace(
+            launch_persistent_context=lambda profile, **options: launched.update(options) or FakeContext()
+        )
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    module = types.ModuleType("playwright.sync_api")
+    module.sync_playwright = FakePlaywright
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", module)
+
+    # Como acontece no app: o .env é carregado depois que browser.py já foi importado.
+    monkeypatch.setenv("JARVIS_BROWSER", "chrome")
+
+    with browser.browser_page("https://example.com"):
+        pass
+
+    assert launched["channel"] == "chrome"
