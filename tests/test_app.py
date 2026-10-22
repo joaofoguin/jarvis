@@ -102,3 +102,24 @@ def test_saved_preferences_apply_without_restarting(jarvis):
     assert not jarvis.voice.wake_word
     assert jarvis.orb.calls == ['setAccent("#A98BFF")']
     assert jarvis.chat.calls == ['setAccent("#A98BFF")']
+
+
+def test_answers_go_to_the_history_file(app, jarvis, monkeypatch):
+    from desktop import dashboard
+
+    monkeypatch.setattr(app, "reply_to", lambda text, history: ("Às ordens.", None))
+
+    jarvis.send("oi")
+
+    assert dashboard.history()[0]["text"] == "oi"
+    assert dashboard.history()[0]["answer"] == "Às ordens."
+
+
+def test_only_web_links_are_opened(app, jarvis, monkeypatch):
+    opened = []
+    monkeypatch.setattr(app.webbrowser, "open", opened.append)
+
+    jarvis.open_link("https://news.google.com/x")
+    jarvis.open_link("file:///C:/Windows/System32/calc.exe")
+
+    assert opened == ["https://news.google.com/x"]

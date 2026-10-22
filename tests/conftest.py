@@ -13,3 +13,4 @@ def isolated_memory(monkeypatch, tmp_path):
     monkeypatch.delenv("WHATSAPP_APELIDOS", raising=False)
     monkeypatch.setenv("JARVIS_SETTINGS", str(tmp_path / "preferencias.json"))
     monkeypatch.setenv("JARVIS_SKILLS", str(tmp_path / "skills"))
+    monkeypatch.setenv("JARVIS_HISTORY", str(tmp_path / "historico.jsonl"))

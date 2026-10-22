@@ -6,6 +6,8 @@ Clique no orbe para falar; com o botão direito, o chat abre e fecha. O orbe pod
 
 import json
 import os
+import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 import keyboard
@@ -14,7 +16,7 @@ import webview
 
 from PIL import Image, ImageDraw
 
-from desktop import settings
+from desktop import dashboard, settings
 from desktop.core import reply_to
 from desktop.panel import Panel
 from desktop.voice import Voice
@@ -29,11 +31,30 @@ ORB_SIZE = 160
 # Distância do orbe até o canto inferior direito da tela.
 ORB_MARGIN = 40
 
+# Cor que o Windows deixa invisível atrás do orbe. Quase preta, para as bordas do brilho não destoarem.
+TRANSPARENT_KEY = (1, 2, 3)
+
 
 def make_icon_image():
     image = Image.new("RGB", (64, 64), (16, 92, 160))
     ImageDraw.Draw(image).text((26, 22), "J", fill="white")
     return image
+
+
+def clear_background(window):
+    """Tira o fundo cinza que o Windows pinta atrás de uma janela transparente do WebView2."""
+
+    from System import Func, Type
+    from System.Drawing import Color
+
+    form = window.native
+    key = Color.FromArgb(*TRANSPARENT_KEY)
+
+    def apply():
+        form.BackColor = key
+        form.TransparencyKey = key
+
+    form.Invoke(Func[Type](apply))
 
 
 def call_js(window, function, *args):
@@ -42,7 +63,7 @@ def call_js(window, function, *args):
 
 
 class Jarvis:
-    """Liga a voz, o orbe e o chat. send, talk, toggle_chat, hide_chat e open_panel são chamados pelo JavaScript das janelas."""
+    """Liga a voz, o orbe e o chat. Os métodos expostos em main() são chamados pelo JavaScript das janelas."""
 
     def __init__(self, preferences, orb, chat):
         self.accent = preferences["accent"]
@@ -75,6 +96,17 @@ class Jarvis:
         self.chat_visible = True
         self.chat.show()
         call_js(self.chat, "focusInput")
+
+    def toggle_fullscreen(self):
+        self.chat.toggle_fullscreen()
+
+    def load_section(self, name):
+        return dashboard.load(name)
+
+    def open_link(self, url):
+        # Só links da web, abertos no navegador padrão.
+        if url.startswith("https://"):
+            webbrowser.open(url)
 
     def open_panel(self):
         self.panel.show()
@@ -113,6 +145,7 @@ class Jarvis:
         answer, task = reply_to(text, list(self.history))
         self.history += [{"role": "user", "content": text}, {"role": "assistant", "content": answer}]
         self.write("jarvis", answer)
+        dashboard.log(datetime.now(), text, answer)
 
         if say:
             say(answer)
@@ -158,19 +191,28 @@ def main():
         resizable=False,
         shadow=False
     )
-    chat = webview.create_window("JARVIS", str(WEB / "chat.html"), width=520, height=640, hidden=True, background_color="#070B12")
+    # Sem a barra do Windows: cada tela tem os próprios botões e é arrastada pelo topo.
+    chat = webview.create_window(
+        "JARVIS", str(WEB / "chat.html"), width=520, height=640, hidden=True,
+        frameless=True, easy_drag=False, background_color="#070B12"
+    )
     panel_window = webview.create_window(
-        "Preferências do JARVIS", str(WEB / "panel.html"), width=980, height=760, hidden=True, background_color="#070B12"
+        "Preferências do JARVIS", str(WEB / "panel.html"), width=980, height=760, hidden=True,
+        frameless=True, easy_drag=False, background_color="#070B12"
     )
 
     jarvis = Jarvis(settings.load(), orb, chat)
     panel = jarvis.panel = Panel(jarvis, panel_window)
     orb.expose(jarvis.talk, jarvis.toggle_chat)
-    chat.expose(jarvis.send, jarvis.talk, jarvis.hide_chat, jarvis.open_panel)
+    chat.expose(
+        jarvis.send, jarvis.talk, jarvis.hide_chat, jarvis.open_panel,
+        jarvis.toggle_fullscreen, jarvis.load_section, jarvis.open_link
+    )
     panel_window.expose(
         panel.load_panel, panel.load_usage, panel.save_preferences, panel.preview_voice,
         panel.add_skill_repo, panel.remove_skill_repo, panel.forget_memory, panel.hide_panel
     )
+    orb.events.loaded += lambda: clear_background(orb)
     chat.events.closing += jarvis.closing
     panel_window.events.closing += panel.closing
 
