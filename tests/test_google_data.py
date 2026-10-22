@@ -160,3 +160,29 @@ def test_accounts_and_token_files(monkeypatch):
 
     assert google_data.accounts() == [None]
     assert google_data.token_file(None) == "google_token.json"
+
+
+def test_failed_login_does_not_hide_other_accounts():
+    ok = FakeCalendar([{"summary": "Aula", "start": {"dateTime": "2026-10-22T08:00:00-03:00"}}])
+
+    text = google_data.agenda_summary(1, [("a@gmail.com", ok), ("b@uenp.edu.br", RuntimeError("access_denied"))])
+
+    assert "Aula [a@gmail.com]" in text
+    assert "Não consegui entrar em b@uenp.edu.br: access_denied" in text
+
+
+def test_services_keeps_going_when_one_login_fails(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ACCOUNTS", "a@gmail.com,b@uenp.edu.br")
+
+    def credentials(account):
+        if account == "b@uenp.edu.br":
+            raise RuntimeError("bloqueado")
+        return None
+
+    monkeypatch.setattr(google_data, "get_credentials", credentials)
+    monkeypatch.setattr("googleapiclient.discovery.build", lambda *args, **kwargs: "serviço")
+
+    result = google_data.services("calendar", "v3")
+
+    assert result[0] == ("a@gmail.com", "serviço")
+    assert isinstance(result[1][1], RuntimeError)

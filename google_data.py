@@ -11,10 +11,17 @@ SCOPES = [
     "https://www.googleapis.com/auth/classroom.coursework.me.readonly"
 ]
 
+# O Google devolve classroom.coursework.me.readonly com o nome antigo
+# (classroom.student-submissions.me.readonly). É o mesmo acesso, então aceitamos.
+os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
 # credentials.json vem do Google Cloud; os tokens são criados no primeiro login. Nenhum vai para o Git.
 CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS", "credentials.json")
 
 MAX_ITEMS = 10
+
+# Tempo máximo esperando o login no navegador, para uma conta não travar as outras.
+LOGIN_TIMEOUT = 120
 
 # Estados de entrega que ainda precisam de ação do aluno.
 PENDING_STATES = ["NEW", "CREATED", "RECLAIMED_BY_STUDENT"]
@@ -56,7 +63,12 @@ def get_credentials(account):
 
         # Abre o navegador para o login do Google; só acontece na primeira vez de cada conta.
         flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
-        creds = flow.run_local_server(port=0, **({"login_hint": account} if account else {}))
+        creds = flow.run_local_server(
+            port=0,
+            timeout_seconds=LOGIN_TIMEOUT,
+            success_message="Login concluído. Pode fechar esta janela e voltar ao JARVIS.",
+            **({"login_hint": account} if account else {})
+        )
 
     with open(path, "w") as file:
         file.write(creds.to_json())
@@ -65,14 +77,25 @@ def get_credentials(account):
 
 
 def services(name, version):
-    """Retorna [(conta, serviço)] para cada conta configurada."""
+    """Retorna [(conta, serviço)] para cada conta. Se o login de uma conta falhar, o serviço é o erro."""
 
     from googleapiclient.discovery import build
 
-    return [
-        (account, build(name, version, credentials=get_credentials(account), cache_discovery=False))
-        for account in accounts()
-    ]
+    result = []
+
+    for account in accounts():
+        try:
+            result.append((account, build(name, version, credentials=get_credentials(account), cache_discovery=False)))
+
+        except Exception as error:
+            result.append((account, error))
+
+    return result
+
+
+def login_error(account, error):
+    who = account or "sua conta"
+    return f"Não consegui entrar em {who}: {error or 'o login não foi concluído a tempo'}"
 
 
 def label(account, many):
@@ -91,6 +114,10 @@ def agenda_summary(days, account_services=None):
     errors = []
 
     for account, service in account_services:
+        if isinstance(service, Exception):
+            errors.append(login_error(account, service))
+            continue
+
         try:
             items = service.events().list(
                 calendarId="primary",
@@ -145,6 +172,10 @@ def classroom_summary(account_services=None):
     errors = []
 
     for account, service in account_services:
+        if isinstance(service, Exception):
+            errors.append(login_error(account, service))
+            continue
+
         try:
             pending += [
                 (due, course + label(account, many), title)
