@@ -3,6 +3,7 @@ import google_data
 import icloud_data
 import memory
 import reports
+import whatsapp_app
 
 from agent.agent import call_claude_code, run_action
 from llm import BROWSER_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, MEMORY_TOOLS, TOOLS, LLMError, ask_llm
@@ -16,7 +17,7 @@ from router import (
 # Mensagens anteriores enviadas à IA. Mais contexto custa mais tokens.
 HISTORY_LIMIT = 6
 
-# Mensagem do WhatsApp esperando o "sim" do usuário: (contato, texto) ou None.
+# Mensagem do WhatsApp esperando o "sim" do usuário: (número, texto) ou None.
 pending_message = None
 
 CONFIRMATIONS = {"sim", "s", "pode", "pode enviar", "pode mandar", "envia", "manda", "confirmo", "ok"}
@@ -33,11 +34,11 @@ def reply_to(text, history):
     global pending_message
 
     if pending_message:
-        contact, message = pending_message
+        phone, message = pending_message
         pending_message = None
 
         if normalize(text).strip(" .!") in CONFIRMATIONS:
-            return "Enviando, senhor.", lambda: run_browser(browser.whatsapp_send, contact, message)
+            return "Enviando, senhor.", lambda: run_whatsapp(phone, message)
 
         # Qualquer outra resposta cancela; se for um pedido novo, ele segue normalmente.
         if normalize(text).strip(" .!") in {"nao", "n", "cancela", "cancelar"}:
@@ -87,8 +88,15 @@ def reply_to(text, history):
 
     if command.startswith(WHATSAPP_PREFIX):
         contact, message = whatsapp_args(command)
-        pending_message = memory.contact_name(contact), message
-        return f"Enviar \"{message}\" para {pending_message[0]} no WhatsApp? Responda \"sim\" para confirmar.", None
+
+        try:
+            name, phone = whatsapp_app.recipient(memory.contact_name(contact))
+
+        except Exception as error:
+            return f"Desculpe, senhor. Não consegui achar o número: {error}", None
+
+        pending_message = phone, message
+        return f"Enviar \"{message}\" para {name} (+{phone}) no WhatsApp? Responda \"sim\" para confirmar.", None
 
     if command == INSTAGRAM_MESSAGES:
         return answer, lambda: run_browser(browser.instagram_unread)
@@ -143,6 +151,15 @@ def run_icloud(function, *args):
     except Exception as error:
         print("ERRO NO ICLOUD:", repr(error))
         return f"Desculpe, senhor. Não consegui consultar o iCloud: {error}"
+
+
+def run_whatsapp(phone, message):
+    try:
+        return whatsapp_app.send(phone, message)
+
+    except Exception as error:
+        print("ERRO NO WHATSAPP:", repr(error))
+        return f"Desculpe, senhor. Não consegui usar o WhatsApp: {error}"
 
 
 def run_browser(function, *args):

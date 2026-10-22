@@ -1,7 +1,6 @@
-"""WhatsApp Web e Instagram pelo navegador, com um perfil só do JARVIS (somente na janela de chat).
+"""Instagram pelo navegador, com um perfil só do JARVIS (somente na janela de chat).
 
-O login é feito uma vez no próprio navegador que o JARVIS abre (QR code no WhatsApp,
-senha no Instagram) e fica salvo no perfil, fora do Git.
+O login é feito uma vez no próprio navegador que o JARVIS abre e fica salvo no perfil, fora do Git.
 """
 
 import os
@@ -10,16 +9,11 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from router import plain
-
 
 DEFAULT_PROFILE = str(Path.home() / ".jarvis" / "navegador")
 
-# Tempo para você escanear o QR code ou entrar no Instagram, em milissegundos.
+# Tempo para você entrar no Instagram, em milissegundos.
 LOGIN_TIMEOUT = 120_000
-WAIT = 30_000
-
-MAX_CHATS = 20
 
 INSTAGRAM_INBOX = "https://www.instagram.com/direct/inbox/"
 
@@ -50,61 +44,6 @@ def browser_page(url):
 
         finally:
             context.close()
-
-
-def whatsapp_send(contact, message):
-    with browser_page("https://web.whatsapp.com") as page:
-        # Na primeira vez aparece o QR code; a lista de conversas só surge depois do login.
-        page.wait_for_selector("#pane-side", timeout=LOGIN_TIMEOUT)
-
-        page.locator("#side [contenteditable='true'], #side input").first.click()
-        page.keyboard.type(contact)
-        page.wait_for_timeout(2000)
-
-        chats = chat_names(page)
-        wanted = [(index, name) for index, name in chats if plain(name) == plain(contact)]
-
-        if not wanted:
-            found = ", ".join(dict.fromkeys(name for _, name in chats))
-            return f"Não encontrei {contact} no WhatsApp." + (f" Encontrei: {found}." if found else "")
-
-        index, contact = wanted[0]
-        chat_rows(page).nth(index).click()
-
-        box = page.locator("#main footer [contenteditable='true']").first
-        box.wait_for(timeout=WAIT)
-        box.click()
-        page.keyboard.type(message)
-        page.keyboard.press("Enter")
-
-        # O relógio some quando a mensagem sai; fechar o navegador antes disso cancelaria o envio.
-        try:
-            page.wait_for_timeout(1000)
-            page.locator('#main [data-icon="msg-time"]').first.wait_for(state="detached", timeout=WAIT)
-
-        except Exception:
-            return f"Escrevi a mensagem para {contact}, mas não consegui confirmar o envio. Confira no celular."
-
-    return f"Mensagem enviada para {contact} no WhatsApp: \"{message}\""
-
-
-def chat_rows(page):
-    return page.locator("#pane-side [role='listitem'], #pane-side [role='row']")
-
-
-def chat_names(page):
-    """[(posição, nome)] das conversas listadas. O primeiro título de cada linha é o nome do contato."""
-
-    rows = chat_rows(page)
-    names = []
-
-    for index in range(min(rows.count(), MAX_CHATS)):
-        title = rows.nth(index).locator("span[title]").first
-
-        if title.count():
-            names.append((index, title.get_attribute("title") or ""))
-
-    return names
 
 
 def instagram_unread():

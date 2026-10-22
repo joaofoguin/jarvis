@@ -382,6 +382,14 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - A cada pergunta aberta, só os fatos que têm palavras em comum com a pergunta (no máximo 5) vão para a IA. Os outros ficam no arquivo e não gastam tokens.
 - Nomes de contatos são comparados sem emojis e acentos (`router.plain`), e a busca parcial só aceita palavras inteiras.
 
+### Atualização de 22/10/2026: WhatsApp pelo aplicativo do Windows
+
+- O envio pelo WhatsApp saiu do navegador e agora usa o aplicativo do Windows (`whatsapp_app.py`). O `browser.py` ficou só com o Instagram.
+- O número vem da memória (apelido) e dos contatos do iCloud (`whatsapp_app.recipient`). Também dá para ditar o número direto. Se houver mais de um contato com o nome, o JARVIS pede o nome completo.
+- A confirmação mostra o nome e o número: `Enviar "..." para Amor (+55...)?`. Só depois do "sim" o JARVIS abre `whatsapp://send?phone=...&text=...` e aperta Enter.
+- O Enter só é apertado se a janela da frente for o WhatsApp, para nunca ir para outro programa. Se o app não ficar na frente em 15 segundos, a conversa fica aberta com o texto pronto, sem envio.
+- Números sem "+" e com DDD (10 ou 11 dígitos) ganham o código 55 do Brasil.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados
