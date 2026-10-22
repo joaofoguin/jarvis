@@ -77,6 +77,24 @@ GOOGLE_TOOLS = [
 ]
 
 
+# Também só no notebook: usam o navegador do JARVIS, com o login do usuário.
+BROWSER_TOOLS = [
+    tool(
+        "enviar_whatsapp",
+        "Envia uma mensagem no WhatsApp Web para um contato. O usuário confirma antes do envio.",
+        {
+            "contato": {"type": "string", "description": "O contato como o usuário disse, por exemplo \"Amor\" ou \"minha namorada\"."},
+            "mensagem": {"type": "string", "description": "O texto exato a enviar."}
+        },
+        ["contato", "mensagem"]
+    ),
+    tool(
+        "ver_mensagens_instagram",
+        "Verifica as mensagens novas no Instagram: quem mandou e quantas."
+    )
+]
+
+
 class LLMError(Exception):
     pass
 

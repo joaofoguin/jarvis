@@ -1,3 +1,4 @@
+import json
 import re
 import unicodedata
 
@@ -52,6 +53,21 @@ CLASSROOM_PATTERN = re.compile(
     r"\b(classroom|(tarefas?|atividades?|trabalhos?) (pendentes?|para entregar|da faculdade))\b"
 )
 
+# WhatsApp e Instagram pelo navegador (só na janela de chat do notebook).
+WHATSAPP_PREFIX = "whatsapp_enviar:"
+WHATSAPP_MAX_MESSAGE = 1000
+INSTAGRAM_MESSAGES = "instagram_mensagens"
+BROWSER_ANSWER = "Um momento, senhor. Estou abrindo o navegador."
+
+WHATSAPP_APP = r"(whatsapp|whats app|zap)"
+WHATSAPP_PATTERN = re.compile(
+    rf"^(jarvis,? )?(mand[ae]|envi[ae]|escrev[ae])( uma)?( mensagem| msg)?(?P<app1> no {WHATSAPP_APP})? "
+    rf"(para|pra|pro|ao|à|a|o) (?P<contato>.+?)(?P<app2> no {WHATSAPP_APP})?(:|,| dizendo| falando| escrito| que)\s+"
+    r"(?P<texto>.+)$",
+    re.IGNORECASE
+)
+INSTAGRAM_PATTERN = re.compile(r"\b(insta(gram)?|direct)\b.*\bmensage|\bmensage.*\b(insta(gram)?|direct)\b")
+
 # Perguntas sobre o programa não são ordens para abri-lo.
 QUESTION_PREFIXES = ("como ", "o que ", "por que ", "porque ", "qual ", "quando ")
 
@@ -105,6 +121,37 @@ def detect_google(question):
     return None
 
 
+def whatsapp_command(contact, message):
+    contact = " ".join(str(contact).split())
+    message = str(message).strip()
+
+    if not contact or not message or len(contact) > 60 or len(message) > WHATSAPP_MAX_MESSAGE:
+        return None
+
+    return WHATSAPP_PREFIX + json.dumps([contact, message], ensure_ascii=False), BROWSER_ANSWER
+
+
+def whatsapp_args(command):
+    """Retorna (contato, mensagem) de um comando whatsapp_enviar."""
+
+    return tuple(json.loads(command[len(WHATSAPP_PREFIX):]))
+
+
+def detect_browser(question):
+    """Reconhece pedidos de WhatsApp e Instagram sem IA. Retorna (comando, resposta) ou None."""
+
+    match = WHATSAPP_PATTERN.match(" ".join(question.split()))
+
+    # Sem citar o WhatsApp, a frase pode ser outra coisa; nesse caso a IA decide.
+    if match and (match["app1"] or match["app2"]):
+        return whatsapp_command(match["contato"], match["texto"])
+
+    if INSTAGRAM_PATTERN.search(normalize(question)):
+        return INSTAGRAM_MESSAGES, BROWSER_ANSWER
+
+    return None
+
+
 def command_for_tool(name, arguments):
     """Converte uma ferramenta escolhida pela IA em (comando, resposta falada), ou None."""
 
@@ -116,6 +163,12 @@ def command_for_tool(name, arguments):
 
     if name == "ver_youtube":
         return GOOGLE_YOUTUBE, GOOGLE_ANSWER
+
+    if name == "enviar_whatsapp":
+        return whatsapp_command(arguments.get("contato", ""), arguments.get("mensagem", ""))
+
+    if name == "ver_mensagens_instagram":
+        return INSTAGRAM_MESSAGES, BROWSER_ANSWER
 
     for item in COMMANDS:
         if item["tool"] == name:

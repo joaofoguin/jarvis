@@ -133,3 +133,47 @@ def test_youtube_report_saved_as_pdf_when_asked(actions, monkeypatch, tmp_path):
     assert len(pdfs) == 1
     assert pdfs[0].read_bytes().startswith(b"%PDF")
     assert f"Relatório salvo em {pdfs[0]}" in result
+
+
+@pytest.fixture
+def sent(monkeypatch):
+    messages = []
+    monkeypatch.setattr(core, "pending_message", None)
+    monkeypatch.setattr(core.browser, "whatsapp_send", lambda contact, text: messages.append((contact, text)) or "enviada")
+    monkeypatch.setenv("WHATSAPP_APELIDOS", "namorada:Amor")
+    return messages
+
+
+def test_whatsapp_message_waits_for_confirmation(actions, sent):
+    answer, task = core.reply_to("mande mensagem para minha namorada no whatsapp dizendo Oi amor, já estou em casa", [])
+
+    assert answer == 'Enviar "Oi amor, já estou em casa" para Amor no WhatsApp? Responda "sim" para confirmar.'
+    assert task is None and sent == []
+
+    answer, task = core.reply_to("Sim", [])
+
+    assert task() == "enviada"
+    assert sent == [("Amor", "Oi amor, já estou em casa")]
+
+
+def test_whatsapp_message_cancelled(actions, sent):
+    core.reply_to("manda pro Amor no zap: oi", [])
+
+    assert core.reply_to("não", []) == ("Certo, senhor. Não enviei.", None)
+    assert sent == []
+
+
+def test_ai_chosen_whatsapp_also_asks_first(actions, sent, monkeypatch):
+    monkeypatch.setattr(core, "ask_llm", lambda *args: ("Certo.", 'whatsapp_enviar:["Amor", "oi"]'))
+
+    answer, task = core.reply_to("avisa a Amor que cheguei", [])
+
+    assert task is None and "Responda \"sim\"" in answer and sent == []
+
+
+def test_instagram_runs_in_background(actions, monkeypatch):
+    monkeypatch.setattr(core.browser, "instagram_unread", lambda: "Nenhuma mensagem nova no Instagram, senhor.")
+
+    answer, task = core.reply_to("verifique se há novas mensagens no instagram", [])
+
+    assert task() == "Nenhuma mensagem nova no Instagram, senhor."

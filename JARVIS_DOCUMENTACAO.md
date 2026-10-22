@@ -357,6 +357,15 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - Se o pedido citar "PDF" ou "relatório", `reports.py` (fpdf2) salva o resultado em PDF na pasta `JARVIS_WORKSPACE` (ou em Documentos) e abre o arquivo. O PDF é gerado pelo próprio JARVIS, sem IA e sem terminal.
 - No Google Cloud, é preciso ativar a **YouTube Data API v3** e a **YouTube Analytics API** no projeto.
 
+### Atualização de 22/10/2026: WhatsApp e Instagram pelo navegador
+
+- `browser.py` controla o Edge com o Playwright, usando um perfil só do JARVIS (`~/.jarvis/navegador`, ou `JARVIS_BROWSER_PROFILE`). O login no WhatsApp Web (QR code) e no Instagram é feito uma vez nesse navegador e fica salvo no perfil, fora do Git.
+- São ações fixas, não navegação livre: `whatsapp_enviar` (procura o contato pelo nome exato e envia o texto) e `instagram_mensagens` (lista quem mandou mensagens novas e quantas, pela mesma chamada que o site do Instagram faz).
+- Antes de enviar uma mensagem, o JARVIS pergunta "Enviar ... para ...?" e só envia depois de um "sim". Qualquer outra resposta cancela.
+- Apelidos ficam em `WHATSAPP_APELIDOS` no `.env`, por exemplo `namorada:Amor`, para "minha namorada" virar o contato "Amor".
+- O roteador (`detect_browser`) reconhece "manda mensagem para X no WhatsApp dizendo Y" e "mensagens novas no Instagram" sem gastar tokens. A IA também pode escolher `enviar_whatsapp` e `ver_mensagens_instagram`.
+- Só funciona na janela de chat do notebook. Os sites mudam com frequência; se uma ação parar de funcionar, os seletores em `browser.py` precisam de ajuste.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados
