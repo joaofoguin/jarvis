@@ -23,7 +23,7 @@ def test_recipient_from_contacts():
 
 
 def test_recipient_typed_number():
-    assert whatsapp_app.recipient("14 99635-4039", []) == ("14 99635-4039", "5514996354039")
+    assert whatsapp_app.recipient("14 99635-4039", []) == (None, "5514996354039")
 
 
 def test_ambiguous_recipient_is_refused():

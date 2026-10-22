@@ -144,7 +144,7 @@ def sent(monkeypatch):
         "BEGIN:VCARD\r\nFN:Amor❤️🥵\r\nTEL:+5514996872005\r\nEND:VCARD",
         "BEGIN:VCARD\r\nFN:Julya Namorada Jow\r\nTEL:(14) 99635-4039\r\nEND:VCARD",
     ])
-    core.memory.remember("minha namorada é a Amor")
+    core.memory.remember("contatos", "namorada", "Amor")
     return messages
 
 
@@ -213,10 +213,10 @@ def test_agenda_adds_icloud_when_configured(actions, monkeypatch):
     assert core.reply_to("o que tenho hoje?", [])[1]() == "Google"
 
 
-def test_memory_is_taught_in_chat_and_used_for_contacts(actions, monkeypatch):
+def test_contact_lookup_uses_memory(actions, monkeypatch):
     monkeypatch.setattr(core.icloud_data, "contact_summary", lambda name: f"procurei {name}")
+    core.memory.remember("contatos", "namorada", "Amor")
 
-    assert core.reply_to("lembre que minha namorada é a Amor", []) == ("Certo, senhor. Vou lembrar que namorada é Amor.", None)
     assert core.reply_to("qual o número da minha namorada?", [])[1]() == "procurei Amor"
 
 
@@ -228,8 +228,52 @@ def test_related_memory_goes_to_the_ai(actions, monkeypatch):
         return "Ok.", None
 
     monkeypatch.setattr(core, "ask_llm", ask)
-    core.memory.remember("eu estudo na UENP")
+    core.memory.remember("geral", "faculdade", "UENP")
 
     core.reply_to("a UENP tem aula amanhã?", [])
 
-    assert received["history"][0]["content"] == "O usuário já te ensinou:\n- eu estudo na UENP"
+    assert received["history"][0]["content"] == "Sua memória (assunto/chave: valor):\n- geral/faculdade: UENP"
+
+
+def llm_replies(monkeypatch, *replies):
+    calls = []
+
+    def ask(text, source, history, tools):
+        calls.append({"history": history, "tools": [tool["function"]["name"] for tool in tools]})
+        return replies[len(calls) - 1]
+
+    monkeypatch.setattr(core, "ask_llm", ask)
+    return calls
+
+
+def test_conversation_continues_after_ai_saves_memory(actions, sent, monkeypatch):
+    calls = llm_replies(
+        monkeypatch,
+        ("", 'memoria_lembrar:["contatos", "toninho", "Amor"]'),
+        ("", 'whatsapp_enviar:["toninho", "Saudações do JARVIS, em nome do Foguinho."]')
+    )
+
+    answer, task = core.reply_to("toninho é a Amor, manda saudações suas pra ele", [])
+
+    assert answer == (
+        "Certo, senhor. Guardei: toninho = Amor. "
+        'Enviar "Saudações do JARVIS, em nome do Foguinho." para Amor❤️🥵 (+5514996872005) no WhatsApp? '
+        'Responda "sim" para confirmar.'
+    )
+    assert "lembrar" not in calls[1]["tools"]
+    assert "Você acabou de guardar na memória" in calls[1]["history"][-1]["content"]
+
+
+def test_only_memory_request_gets_short_answer(actions, monkeypatch):
+    llm_replies(monkeypatch, ("", 'memoria_lembrar:["usuario", "apelido", "Foguinho"]'), ("OK.", None))
+
+    assert core.reply_to("aprenda, me chame de Foguinho", []) == ("Certo, senhor. Guardei: apelido = Foguinho.", None)
+
+
+def test_contact_saved_as_number(actions, sent, monkeypatch):
+    core.memory.remember("contatos", "montanha", "+5518996357288")
+    llm_replies(monkeypatch, ("", 'whatsapp_enviar:["Montanha", "oi"]'))
+
+    assert core.reply_to("avisa o Montanha", [])[0] == (
+        'Enviar "oi" para Montanha (+5518996357288) no WhatsApp? Responda "sim" para confirmar.'
+    )

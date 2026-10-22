@@ -10,7 +10,7 @@ from llm import BROWSER_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, MEMORY_TOOLS, TOOLS, 
 from router import (
     CLAUDE_CODE_PREFIX, FORGET_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
     ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, MEMORY_PREFIX, WHATSAPP_PREFIX,
-    detect_browser, detect_command, detect_contact, detect_google, detect_memory, normalize, whatsapp_args
+    detect_browser, detect_command, detect_contact, detect_google, memory_args, normalize, plain, whatsapp_args
 )
 
 
@@ -44,36 +44,75 @@ def reply_to(text, history):
         if normalize(text).strip(" .!") in {"nao", "n", "cancela", "cancelar"}:
             return "Certo, senhor. Não enviei.", None
 
-    match = detect_memory(text) or detect_browser(text) or detect_command(text) or detect_contact(text) or detect_google(text)
+    match = detect_browser(text) or detect_command(text) or detect_contact(text) or detect_google(text)
 
-    if not match:
-        try:
-            # Só os fatos da memória ligados à pergunta vão junto, para gastar poucos tokens.
-            answer, command = ask_llm(
-                text, "desktop", memory.context(text) + history[-HISTORY_LIMIT:],
-                TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS + MEMORY_TOOLS
-            )
+    if match:
+        return run_command(*match, text)
 
-        except LLMError as error:
-            print("ERRO NA IA:", repr(error))
-            return "Desculpe, senhor. Minha inteligência está indisponível no momento.", None
+    try:
+        answer, command = ask(text, history)
 
-        if not command:
-            return answer, None
+    except LLMError as error:
+        print("ERRO NA IA:", repr(error))
+        return "Desculpe, senhor. Minha inteligência está indisponível no momento.", None
 
-        match = command, answer
+    if not command:
+        return answer, None
 
-    command, answer = match
+    if command.startswith((MEMORY_PREFIX, FORGET_PREFIX)):
+        return continue_after_memory(run_command(command, answer, text)[0], text, history)
+
+    return run_command(command, answer, text)
+
+
+def ask(text, history, extra=None, tools=None):
+    # Só os fatos da memória ligados à pergunta vão junto, para gastar poucos tokens.
+    return ask_llm(
+        text, "desktop", memory.context(text) + history[-HISTORY_LIMIT:] + (extra or []),
+        tools or TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS + MEMORY_TOOLS
+    )
+
+
+def continue_after_memory(note, text, history):
+    """Depois de guardar algo, segue a conversa: a mesma frase pode trazer outro pedido."""
+
+    extra = [{
+        "role": "system",
+        "content": f"Você acabou de guardar na memória ({note}). Atenda agora o resto do pedido do usuário, "
+                   "se houver. Se ele só pediu para lembrar algo, responda apenas OK."
+    }]
+
+    try:
+        answer, command = ask(text, history, extra, TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS)
+
+    except LLMError as error:
+        print("ERRO NA IA:", repr(error))
+        return note, None
+
+    if command:
+        reply, task = run_command(command, answer, text)
+        return f"{note} {reply}".strip(), task
+
+    if plain(answer) == "ok":
+        return note, None
+
+    return f"{note} {answer}", None
+
+
+def run_command(command, answer, text):
+    """Executa um comando do roteador ou da IA. Retorna (resposta, tarefa)."""
+
+    global pending_message
 
     if command.startswith(CLAUDE_CODE_PREFIX):
         task = command[len(CLAUDE_CODE_PREFIX):]
         return answer, lambda: run_task(task)
 
     if command.startswith(MEMORY_PREFIX):
-        return memory.remember(command[len(MEMORY_PREFIX):]), None
+        return memory.remember(*memory_args(command)), None
 
     if command.startswith(FORGET_PREFIX):
-        return memory.forget(command[len(FORGET_PREFIX):]), None
+        return memory.forget(*memory_args(command)), None
 
     if command.startswith(GOOGLE_AGENDA_PREFIX):
         days = int(command[len(GOOGLE_AGENDA_PREFIX):])
@@ -91,6 +130,7 @@ def reply_to(text, history):
 
         try:
             name, phone = whatsapp_app.recipient(memory.contact_name(contact))
+            name = name or contact
 
         except Exception as error:
             return f"Desculpe, senhor. Não consegui achar o número: {error}", None

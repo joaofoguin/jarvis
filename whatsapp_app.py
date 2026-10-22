@@ -31,10 +31,10 @@ def phone_digits(phone):
 
 
 def recipient(contact, cards=None):
-    """Retorna (nome, número) de um contato ou de um número digitado."""
+    """Retorna (nome, número) de um contato. Para um número digitado, o nome é None."""
 
     if len(re.sub(r"\D", "", contact)) >= 10:
-        return contact, phone_digits(contact)
+        return None, phone_digits(contact)
 
     found = [(name, phones) for name, phones in icloud_data.find_contacts(contact, cards) if phones]
 
