@@ -1,8 +1,9 @@
 import pytest
 
 from router import (
-    ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, WHATSAPP_PREFIX,
-    command_for_tool, detect_browser, detect_command, detect_contact, detect_google, is_allowed_command,
+    FORGET_PREFIX, ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, MEMORY_PREFIX, WHATSAPP_PREFIX,
+    command_for_tool, detect_browser, detect_command, detect_contact, detect_google, detect_memory, is_allowed_command,
+    plain,
     whatsapp_args
 )
 
@@ -122,3 +123,22 @@ def test_detects_contact_requests(question, name):
 def test_contact_tool():
     assert command_for_tool("buscar_contato", {"nome": "Amor"})[0] == ICLOUD_CONTACT_PREFIX + "Amor"
     assert command_for_tool("buscar_contato", {"nome": " "}) is None
+
+
+@pytest.mark.parametrize("question, prefix, fact", [
+    ("lembre que minha namorada é a Amor", MEMORY_PREFIX, "minha namorada é a Amor"),
+    ("Jarvis, aprenda que eu estudo na UENP", MEMORY_PREFIX, "eu estudo na UENP"),
+    ("anote: meu time é o Corinthians", MEMORY_PREFIX, "meu time é o Corinthians"),
+    ("esqueça que meu time é o Corinthians", FORGET_PREFIX, "meu time é o Corinthians"),
+])
+def test_detects_memory_requests(question, prefix, fact):
+    assert detect_memory(question)[0] == prefix + fact
+
+
+def test_reminder_without_que_is_not_memory():
+    assert detect_memory("lembre de pagar a conta") is None
+
+
+def test_plain_drops_emojis_and_accents():
+    assert plain("Amor❤️🥵") == "amor"
+    assert plain("  Mãe  (casa) ") == "mae casa"

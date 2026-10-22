@@ -33,14 +33,6 @@ def test_instagram_error_is_raised():
         browser.unread_summary({"message": "login_required", "status": "fail"})
 
 
-def test_contact_aliases(monkeypatch):
-    monkeypatch.setenv("WHATSAPP_APELIDOS", "namorada:Amor, mae:Mãe")
-
-    assert browser.contact_name("minha namorada") == "Amor"
-    assert browser.contact_name("minha mãe") == "Mãe"
-    assert browser.contact_name("Pedro") == "Pedro"
-
-
 def test_browser_choice_is_read_when_opening(monkeypatch):
     import sys
     import types

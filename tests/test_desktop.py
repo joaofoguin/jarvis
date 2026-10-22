@@ -198,3 +198,25 @@ def test_agenda_adds_icloud_when_configured(actions, monkeypatch):
     monkeypatch.setattr(core.icloud_data, "configured", lambda: False)
 
     assert core.reply_to("o que tenho hoje?", [])[1]() == "Google"
+
+
+def test_memory_is_taught_in_chat_and_used_for_contacts(actions, monkeypatch):
+    monkeypatch.setattr(core.icloud_data, "contact_summary", lambda name: f"procurei {name}")
+
+    assert core.reply_to("lembre que minha namorada é a Amor", []) == ("Certo, senhor. Vou lembrar que namorada é Amor.", None)
+    assert core.reply_to("qual o número da minha namorada?", [])[1]() == "procurei Amor"
+
+
+def test_related_memory_goes_to_the_ai(actions, monkeypatch):
+    received = {}
+
+    def ask(text, source, history, tools):
+        received["history"] = history
+        return "Ok.", None
+
+    monkeypatch.setattr(core, "ask_llm", ask)
+    core.memory.remember("eu estudo na UENP")
+
+    core.reply_to("a UENP tem aula amanhã?", [])
+
+    assert received["history"][0]["content"] == "O usuário já te ensinou:\n- eu estudo na UENP"

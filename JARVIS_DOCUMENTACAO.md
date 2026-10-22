@@ -362,7 +362,7 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - `browser.py` controla o Edge com o Playwright, usando um perfil só do JARVIS (`~/.jarvis/navegador`, ou `JARVIS_BROWSER_PROFILE`). O login no WhatsApp Web (QR code) e no Instagram é feito uma vez nesse navegador e fica salvo no perfil, fora do Git.
 - São ações fixas, não navegação livre: `whatsapp_enviar` (procura o contato pelo nome exato e envia o texto) e `instagram_mensagens` (lista quem mandou mensagens novas e quantas, pela mesma chamada que o site do Instagram faz).
 - Antes de enviar uma mensagem, o JARVIS pergunta "Enviar ... para ...?" e só envia depois de um "sim". Qualquer outra resposta cancela.
-- Apelidos ficam em `WHATSAPP_APELIDOS` no `.env`, por exemplo `namorada:Amor`, para "minha namorada" virar o contato "Amor".
+- Apelidos vêm da memória do JARVIS ("lembre que minha namorada é a Amor"). O antigo `WHATSAPP_APELIDOS` no `.env` continua valendo.
 - O roteador (`detect_browser`) reconhece "manda mensagem para X no WhatsApp dizendo Y" e "mensagens novas no Instagram" sem gastar tokens. A IA também pode escolher `enviar_whatsapp` e `ver_mensagens_instagram`.
 - Só funciona na janela de chat do notebook. Os sites mudam com frequência; se uma ação parar de funcionar, os seletores em `browser.py` precisam de ajuste.
 
@@ -370,9 +370,17 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 
 - `icloud_data.py` lê os contatos (CardDAV, `contacts.icloud.com`) e o calendário (CalDAV, `caldav.icloud.com`, com a biblioteca `caldav`) do iCloud. É somente leitura e só funciona na janela de chat do notebook.
 - O login usa `ICLOUD_EMAIL` e `ICLOUD_APP_PASSWORD` no `.env`. A senha é uma senha de app criada em account.apple.com, nunca a senha da conta Apple.
-- "Qual o número da X?" é reconhecido sem IA (`detect_contact`), e a IA também pode usar `buscar_contato`. Os apelidos de `WHATSAPP_APELIDOS` valem aqui, então "minha namorada" vira "Amor".
+- "Qual o número da X?" é reconhecido sem IA (`detect_contact`), e a IA também pode usar `buscar_contato`. Os apelidos da memória do JARVIS valem aqui, então "minha namorada" vira "Amor".
 - Quando o iCloud está configurado, os pedidos de agenda mostram o calendário do iCloud logo abaixo da agenda do Google.
 - O resultado fica no histórico do chat, e o histórico vai para a IA na próxima pergunta aberta. Então telefones consultados podem chegar à DeepSeek.
+
+### Atualização de 22/10/2026: memória do JARVIS
+
+- `memory.py` guarda o que o usuário ensina no chat em arquivos Markdown, um por assunto, em `~/.jarvis/memoria` (ou `JARVIS_MEMORY`), fora do Git: `apelidos.md` e `fatos.md`. Os arquivos podem ser abertos e editados à mão.
+- "lembre que / aprenda que / anote que ..." guarda, e "esqueça que ..." apaga. O roteador reconhece essas frases sem IA (`detect_memory`), e a IA também pode usar a ferramenta `lembrar`.
+- Frases como "minha namorada é a Amor" viram apelidos, usados para achar contatos no iCloud e no WhatsApp. `WHATSAPP_APELIDOS` no `.env` continua funcionando, mas não é mais necessário.
+- A cada pergunta aberta, só os fatos que têm palavras em comum com a pergunta (no máximo 5) vão para a IA. Os outros ficam no arquivo e não gastam tokens.
+- Nomes de contatos são comparados sem emojis e acentos (`router.plain`), e a busca parcial só aceita palavras inteiras.
 
 ## 13. Histórico de resultados e problemas
 
