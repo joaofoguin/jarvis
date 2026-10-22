@@ -419,6 +419,16 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - A cor vem de `accent` em `~/.jarvis/preferencias.json` (padrão `#3FD4F5`).
 - O Python fala com as telas por `evaluate_js`, com textos passados por `json.dumps`, e as mensagens entram como texto, nunca como HTML.
 
+### Atualização de 22/10/2026: painel de preferências
+
+- O painel (`desktop/web/panel.html` e `desktop/panel.py`) abre pelo ícone perto do relógio ("Preferências") ou pela engrenagem do chat. As mudanças valem na hora, sem reiniciar.
+- **Uso de IA:** mostra os tokens dos últimos 14 dias, lidos de `ai_usage` (`desktop/usage.py`), com o total por dia e por origem e o custo estimado. O custo usa o preço de pico do deepseek-flash conferido em 22/10/2026; se o preço mudar, atualize as constantes em `desktop/usage.py`. Sem `POSTGRES_URL`, só essa parte fica vazia.
+- **Aparência e voz:** cor do orbe, voz neural, velocidade da fala e um botão para testar a voz.
+- **Reconhecimento:** liga e desliga o "Hey Jarvis" automático e as respostas faladas.
+- **Repositórios de Skills** (`desktop/skills.py`): aceita só `https://github.com/dono/repositorio`. O repositório é baixado com `git clone` em `~/.jarvis/skills`, e cada pasta com `SKILL.md` é copiada para `JARVIS_WORKSPACE/.claude/skills`, onde o Claude Code a encontra. Uma skill que já existe nunca é substituída. Remover apaga só o que veio daquele repositório.
+- **Memória:** lista os itens de cada assunto e permite apagar um item.
+- As preferências são validadas antes de gravar (voz da lista, velocidade de -50% a +50%, cor em `#RRGGBB`).
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados

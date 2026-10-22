@@ -16,6 +16,7 @@
   }
   .name { font: 600 13px/1 "Segoe UI", sans-serif; letter-spacing: 4px; color: var(--muted); }
   #state { margin-left: auto; font-size: 13px; color: var(--muted); }
+  #settings { background: transparent; color: var(--muted); }
 
   #log { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
   .message { max-width: 85%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -41,6 +42,9 @@
   <div class="dot" aria-hidden="true"></div>
   <span class="name">J.A.R.V.I.S.</span>
   <span id="state" aria-live="polite"></span>
+  <button type="button" id="settings" aria-label="Preferências">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>
+  </button>
 </header>
 
 <main id="log" aria-live="polite"></main>
@@ -85,6 +89,7 @@
   });
 
   document.getElementById("talk").addEventListener("click", () => window.pywebview.api.talk());
+  document.getElementById("settings").addEventListener("click", () => window.pywebview.api.open_panel());
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") window.pywebview.api.hide_chat();

@@ -1,11 +1,11 @@
-"""JARVIS no notebook: um orbe flutuante e uma janela de chat. Rode com: pythonw -m desktop.app (na raiz do projeto).
+"""JARVIS no notebook: um orbe flutuante, uma janela de chat e o painel de preferências.
+Rode com: pythonw -m desktop.app (na raiz do projeto).
 
 Clique no orbe para falar; com o botão direito, o chat abre e fecha. O orbe pode ser arrastado.
 """
 
 import json
 import os
-import threading
 from pathlib import Path
 
 import keyboard
@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw
 
 from desktop import settings
 from desktop.core import reply_to
+from desktop.panel import Panel
 from desktop.voice import Voice
 
 
@@ -41,7 +42,7 @@ def call_js(window, function, *args):
 
 
 class Jarvis:
-    """Liga a voz, o orbe e o chat. send, talk, toggle_chat e hide_chat são chamados pelo JavaScript das janelas."""
+    """Liga a voz, o orbe e o chat. send, talk, toggle_chat, hide_chat e open_panel são chamados pelo JavaScript das janelas."""
 
     def __init__(self, preferences, orb, chat):
         self.accent = preferences["accent"]
@@ -50,6 +51,7 @@ class Jarvis:
         self.chat_visible = False
         self.quitting = False
         self.history = []
+        self.panel = None
         self.voice = Voice(on_text=self.answer_aloud, on_state=self.show_state, preferences=preferences)
 
     def send(self, text):
@@ -73,6 +75,20 @@ class Jarvis:
         self.chat_visible = True
         self.chat.show()
         call_js(self.chat, "focusInput")
+
+    def open_panel(self):
+        self.panel.show()
+
+    def apply_preferences(self, preferences):
+        # Vale na hora, sem reiniciar o app.
+        self.accent = preferences["accent"]
+        self.voice.voice = preferences["voice"]
+        self.voice.rate = preferences["rate"]
+        self.voice.wake_word = preferences["wake_word"]
+        self.voice.speak_replies = preferences["speak_replies"]
+
+        for window in (self.orb, self.chat):
+            call_js(window, "setAccent", self.accent)
 
     def start(self):
         # Roda numa thread própria assim que as janelas abrem.
@@ -143,17 +159,27 @@ def main():
         shadow=False
     )
     chat = webview.create_window("JARVIS", str(WEB / "chat.html"), width=520, height=640, hidden=True, background_color="#070B12")
+    panel_window = webview.create_window(
+        "Preferências do JARVIS", str(WEB / "panel.html"), width=980, height=760, hidden=True, background_color="#070B12"
+    )
 
     jarvis = Jarvis(settings.load(), orb, chat)
+    panel = jarvis.panel = Panel(jarvis, panel_window)
     orb.expose(jarvis.talk, jarvis.toggle_chat)
-    chat.expose(jarvis.send, jarvis.talk, jarvis.hide_chat)
+    chat.expose(jarvis.send, jarvis.talk, jarvis.hide_chat, jarvis.open_panel)
+    panel_window.expose(
+        panel.load_panel, panel.load_usage, panel.save_preferences, panel.preview_voice,
+        panel.add_skill_repo, panel.remove_skill_repo, panel.forget_memory, panel.hide_panel
+    )
     chat.events.closing += jarvis.closing
+    panel_window.events.closing += panel.closing
 
     def quit_app():
         jarvis.quitting = True
         icon.stop()
         orb.destroy()
         chat.destroy()
+        panel_window.destroy()
 
     icon = pystray.Icon(
         "jarvis",
@@ -162,6 +188,7 @@ def main():
         menu=pystray.Menu(
             pystray.MenuItem("Abrir chat", lambda: jarvis.show_chat(), default=True),
             pystray.MenuItem("Falar agora", lambda: jarvis.talk()),
+            pystray.MenuItem("Preferências", lambda: jarvis.open_panel()),
             pystray.MenuItem("Sair", quit_app)
         )
     )
