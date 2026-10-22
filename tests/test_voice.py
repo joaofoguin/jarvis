@@ -25,6 +25,7 @@ def fake_sr(monkeypatch):
         WaitTimeoutError=type("WaitTimeoutError", (Exception,), {}),
         UnknownValueError=type("UnknownValueError", (Exception,), {}),
         RequestError=type("RequestError", (Exception,), {}),
+        AudioSource=object,
         Recognizer=lambda: None
     )
     monkeypatch.setitem(sys.modules, "speech_recognition", module)
@@ -161,3 +162,33 @@ def test_voice_failure_keeps_the_answer_on_screen(monkeypatch):
     jarvis.say("Oi, senhor.")
 
     assert states == ["speaking", "thinking"]
+
+
+class FakeInputStream:
+
+    def __init__(self, **options):
+        self.options = options
+        self.events = []
+
+    def start(self):
+        self.events.append("start")
+
+    def stop(self):
+        self.events.append("stop")
+
+    def close(self):
+        self.events.append("close")
+
+    def read(self, size):
+        return bytearray(b"\x01\x00" * size), False
+
+
+def test_microphone_reads_16khz_mono_without_pyaudio(fake_sr, monkeypatch):
+    monkeypatch.setitem(sys.modules, "sounddevice", types.SimpleNamespace(RawInputStream=FakeInputStream))
+
+    with voice.microphone() as source:
+        assert source.stream.read(4) == b"\x01\x00" * 4
+        assert source.input.options == {"samplerate": 16000, "blocksize": voice.FRAME, "channels": 1, "dtype": "int16"}
+
+    assert source.input.events == ["start", "stop", "close"]
+    assert source.stream is None

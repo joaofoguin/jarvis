@@ -29,6 +29,41 @@ PHRASE_LIMIT = 15
 URL_PATTERN = re.compile(r"https?://\S+")
 
 
+def microphone():
+    """O microfone padrão pelo sounddevice, no formato que o SpeechRecognition espera.
+
+    O sounddevice já vem pronto para qualquer versão do Python no Windows, sem compilar nada.
+    """
+
+    import sounddevice
+    import speech_recognition as sr
+
+    class Microphone(sr.AudioSource):
+        SAMPLE_WIDTH = 2
+        CHUNK = FRAME
+
+        def __init__(self):
+            self.SAMPLE_RATE = SAMPLE_RATE
+            self.input = sounddevice.RawInputStream(samplerate=SAMPLE_RATE, blocksize=FRAME, channels=1, dtype="int16")
+            self.stream = None
+
+        def __enter__(self):
+            self.input.start()
+            self.stream = self
+            return self
+
+        def __exit__(self, *error):
+            self.input.stop()
+            self.input.close()
+            self.stream = None
+
+        def read(self, size):
+            data, _ = self.input.read(size)
+            return bytes(data)
+
+    return Microphone()
+
+
 def read_frame(source):
     import numpy
 
@@ -88,16 +123,14 @@ class Voice:
         self.stop = threading.Event()
 
     def run(self):
-        import speech_recognition as sr
-
         while not self.stop.is_set():
             if self.wake_word:
-                with sr.Microphone(sample_rate=SAMPLE_RATE, chunk_size=FRAME) as source:
+                with microphone() as source:
                     if self.wait_for_wake(source):
                         self.converse(source)
 
             elif self.trigger.wait(0.5):
-                with sr.Microphone(sample_rate=SAMPLE_RATE) as source:
+                with microphone() as source:
                     self.converse(source)
 
     def wait_for_wake(self, source):
