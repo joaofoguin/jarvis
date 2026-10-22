@@ -9,5 +9,5 @@ playwright
 caldav
 openwakeword>=0.6
 SpeechRecognition
-pyaudio
+sounddevice
 edge-tts
