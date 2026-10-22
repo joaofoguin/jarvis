@@ -121,8 +121,8 @@ class Jarvis:
 
     def start(self):
         # Roda numa thread própria assim que as janelas abrem.
-        self.orb.start(self.talk, self.toggle_chat)
         call_js(self.chat, "setAccent", self.accent)
+        self.orb.start(self.talk, self.toggle_chat, lambda error: self.write("jarvis", f"Orbe desligado: {error}"))
 
         self.write("jarvis", f"Online, senhor. Diga \"Hey Jarvis\", clique no orbe ou use {HOTKEY} para o chat.")
 

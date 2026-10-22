@@ -152,19 +152,31 @@ class Orb:
     def set_accent(self, color):
         self.accent = color
 
-    def start(self, on_click, on_right_click):
+    def start(self, on_click, on_right_click, on_error):
         self.on_click = on_click
         self.on_right_click = on_right_click
-        threading.Thread(target=self.run, daemon=True).start()
+        threading.Thread(target=self.run_safely, args=(on_error,), daemon=True).start()
 
     def destroy(self):
         if self.hwnd:
             win32().user32.PostMessageW(self.hwnd, WM_CLOSE, 0, 0)
 
+    def run_safely(self, on_error):
+        # Sem isso, um erro na thread do orbe some calado e o orbe só não aparece.
+        try:
+            self.run()
+
+        except Exception as error:
+            on_error(error)
+
     def run(self):
         api = win32()
         user32, gdi32 = api.user32, api.gdi32
         ctypes, w = api.ctypes, api.wintypes
+
+        # O pywebview marca o processo como ciente da escala do Windows só depois de começar; esta
+        # thread pode rodar antes. Fixando a escala aqui, tamanho e posição ficam sempre em pixels reais.
+        user32.SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_SYSTEM_AWARE)
 
         self.proc = api.WNDPROC(self.handle)
         instance = api.kernel32.GetModuleHandleW(None)
@@ -172,12 +184,15 @@ class Orb:
             cbSize=ctypes.sizeof(api.WNDCLASSEXW), lpfnWndProc=self.proc, hInstance=instance,
             hCursor=user32.LoadCursorW(None, ctypes.c_void_p(IDC_HAND)), lpszClassName="JarvisOrb"
         )
-        user32.RegisterClassExW(ctypes.byref(window_class))
+        if not user32.RegisterClassExW(ctypes.byref(window_class)) and ctypes.get_last_error() != ERROR_CLASS_ALREADY_EXISTS:
+            raise ctypes.WinError(ctypes.get_last_error())
 
         self.hwnd = user32.CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, "JarvisOrb", "JARVIS",
             WS_POPUP, 0, 0, 0, 0, None, None, instance, None
         )
+        if not self.hwnd:
+            raise ctypes.WinError(ctypes.get_last_error())
 
         self.size = round(SIZE * user32.GetDpiForWindow(self.hwnd) / 96)
         area = w.RECT()
@@ -218,10 +233,11 @@ class Orb:
         ctypes.memmove(self.bits, pixels, len(pixels))
 
         blend = api.BLENDFUNCTION(AC_SRC_OVER, 0, 255, AC_SRC_ALPHA)
-        api.user32.UpdateLayeredWindow(
+        if not api.user32.UpdateLayeredWindow(
             self.hwnd, self.screen, None, ctypes.byref(w.SIZE(self.size, self.size)), self.memory,
             ctypes.byref(w.POINT(0, 0)), 0, ctypes.byref(blend), ULW_ALPHA
-        )
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
 
     def handle(self, hwnd, message, wparam, lparam):
         api = win32()
@@ -276,6 +292,8 @@ class Orb:
         return user32.DefWindowProcW(hwnd, message, wparam, lparam)
 
 
+DPI_AWARENESS_CONTEXT_SYSTEM_AWARE = -2
+ERROR_CLASS_ALREADY_EXISTS = 1410
 WS_POPUP = 0x80000000
 WS_EX_LAYERED = 0x80000
 WS_EX_TOPMOST = 0x8
@@ -327,7 +345,8 @@ def win32():
     class BLENDFUNCTION(ctypes.Structure):
         _fields_ = [("BlendOp", ctypes.c_ubyte), ("BlendFlags", ctypes.c_ubyte), ("SourceConstantAlpha", ctypes.c_ubyte), ("AlphaFormat", ctypes.c_ubyte)]
 
-    user32, gdi32, kernel32 = ctypes.windll.user32, ctypes.windll.gdi32, ctypes.windll.kernel32
+    # Cópias próprias das DLLs: os tipos definidos aqui não mexem nos de outras bibliotecas, e vice-versa.
+    user32, gdi32, kernel32 = (ctypes.WinDLL(name, use_last_error=True) for name in ("user32", "gdi32", "kernel32"))
     signatures = {
         user32.DefWindowProcW: ([w.HWND, w.UINT, w.WPARAM, w.LPARAM], LRESULT),
         user32.RegisterClassExW: ([ctypes.POINTER(WNDCLASSEXW)], w.ATOM),
@@ -335,6 +354,7 @@ def win32():
                                   ctypes.c_int, w.HWND, w.HMENU, w.HINSTANCE, w.LPVOID], w.HWND),
         user32.LoadCursorW: ([w.HINSTANCE, ctypes.c_void_p], w.HANDLE),
         user32.GetDpiForWindow: ([w.HWND], w.UINT),
+        user32.SetThreadDpiAwarenessContext: ([w.HANDLE], w.HANDLE),
         user32.SystemParametersInfoW: ([w.UINT, w.UINT, w.LPVOID, w.UINT], w.BOOL),
         user32.SetWindowPos: ([w.HWND, w.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, w.UINT], w.BOOL),
         user32.GetDC: ([w.HWND], w.HDC),
