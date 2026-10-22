@@ -11,3 +11,4 @@ def isolated_memory(monkeypatch, tmp_path):
     # Os testes nunca leem nem escrevem a memória real do JARVIS.
     monkeypatch.setenv("JARVIS_MEMORY", str(tmp_path / "memoria"))
     monkeypatch.delenv("WHATSAPP_APELIDOS", raising=False)
+    monkeypatch.setenv("JARVIS_SETTINGS", str(tmp_path / "preferencias.json"))

@@ -10,10 +10,20 @@ import pystray
 
 from PIL import Image, ImageDraw
 
+from desktop import settings
 from desktop.core import reply_to
+from desktop.voice import Voice
 
 
 HOTKEY = os.getenv("JARVIS_HOTKEY", "ctrl+alt+j")
+
+# O título da janela mostra o que a voz está fazendo.
+VOICE_STATES = {
+    "idle": "",
+    "listening": " · ouvindo",
+    "thinking": " · pensando",
+    "speaking": " · falando"
+}
 
 # Outras threads (atalho, ícone, IA) só conversam com a janela por esta fila,
 # porque o tkinter não pode ser usado fora da thread principal.
@@ -63,12 +73,24 @@ class ChatWindow:
 
         threading.Thread(target=self.answer, args=(text, list(self.history)), daemon=True).start()
 
-    def answer(self, text, history):
+    def answer(self, text, history, say=None):
         answer, task = reply_to(text, history)
         events.put(("reply", text, answer))
 
+        if say:
+            say(answer)
+
         if task:
-            events.put(("note", task()))
+            note = task()
+            events.put(("note", note))
+
+            if say:
+                say(note)
+
+    def answer_aloud(self, voice, text):
+        # Roda na thread da voz, que só volta a ouvir depois de responder.
+        events.put(("heard", text))
+        self.answer(text, list(self.history), say=voice.say)
 
     def show(self):
         self.root.deiconify()
@@ -94,6 +116,12 @@ class ChatWindow:
                     {"role": "assistant", "content": answer}
                 ]
 
+            elif event[0] == "heard":
+                self.write("Você", event[1])
+
+            elif event[0] == "state":
+                self.root.title("JARVIS" + VOICE_STATES[event[1]])
+
             elif event[0] == "note":
                 self.write("JARVIS", event[1])
                 # Guarda o resultado para a IA poder responder perguntas sobre ele depois.
@@ -113,9 +141,25 @@ class ChatWindow:
         self.root.after(100, self.process_events, icon)
 
 
+def run_voice(voice):
+    try:
+        voice.run()
+
+    except Exception as error:
+        # Sem microfone ou sem as bibliotecas de voz, o chat por texto continua funcionando.
+        events.put(("note", f"Voz desligada: {error}"))
+
+
 def main():
     root = tk.Tk()
     window = ChatWindow(root)
+
+    voice = Voice(
+        on_text=lambda text: window.answer_aloud(voice, text),
+        on_state=lambda state: events.put(("state", state)),
+        preferences=settings.load()
+    )
+    threading.Thread(target=run_voice, args=(voice,), daemon=True).start()
 
     icon = pystray.Icon(
         "jarvis",
@@ -123,6 +167,7 @@ def main():
         "JARVIS",
         menu=pystray.Menu(
             pystray.MenuItem("Abrir", lambda: events.put(("show",)), default=True),
+            pystray.MenuItem("Falar agora", lambda: voice.trigger.set()),
             pystray.MenuItem("Sair", lambda: events.put(("quit",)))
         )
     )
