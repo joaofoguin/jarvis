@@ -21,7 +21,7 @@ def test_known_command_runs_locally_without_ai(actions, monkeypatch):
 def test_ai_answer_uses_recent_history(actions, monkeypatch):
     received = {}
 
-    def ask(text, source, history):
+    def ask(text, source, history, tools):
         received["history"] = history
         return "Brasília, senhor.", None
 
@@ -41,11 +41,15 @@ def test_ai_chosen_action_runs_locally(actions, monkeypatch):
     assert actions == ["open_website:whatsapp"]
 
 
-def test_claude_code_task_is_returned_for_background(actions):
+def test_claude_code_task_is_returned_for_background(actions, monkeypatch):
+    received = []
+    monkeypatch.setattr(core, "call_claude_code", lambda task: received.append(task) or ("completed", "ok"))
+
     answer, task = core.reply_to("peça ao Claude para criar ola.py", [])
 
-    assert task == "criar ola.py"
     assert actions == []
+    assert task() == "Claude Code terminou: ok"
+    assert received == ["criar ola.py"]
 
 
 def test_ai_failure_gives_friendly_answer(actions, monkeypatch):
@@ -70,3 +74,39 @@ def test_run_task_reports_result(monkeypatch):
     monkeypatch.setattr(core, "call_claude_code", lambda task: ("completed", "Criei ola.py."))
 
     assert core.run_task("criar ola.py") == "Claude Code terminou: Criei ola.py."
+
+
+def test_agenda_request_skips_ai_and_runs_in_background(actions, monkeypatch):
+    monkeypatch.setattr(core, "ask_llm", lambda *args: pytest.fail("não deveria chamar a IA"))
+    monkeypatch.setattr(core.google_data, "agenda_summary", lambda days: f"agenda de {days} dias")
+
+    answer, task = core.reply_to("o que tenho amanhã?", [])
+
+    assert task() == "agenda de 2 dias"
+
+
+def test_ai_can_choose_classroom_tool(actions, monkeypatch):
+    offered = {}
+
+    def ask(text, source, history, tools):
+        offered["names"] = {t["function"]["name"] for t in tools}
+        return "Um momento, senhor.", "google_classroom"
+
+    monkeypatch.setattr(core, "ask_llm", ask)
+    monkeypatch.setattr(core.google_data, "classroom_summary", lambda: "nada pendente")
+
+    answer, task = core.reply_to("tenho algo para entregar na faculdade?", [])
+
+    assert {"ver_agenda", "ver_tarefas_classroom"} <= offered["names"]
+    assert task() == "nada pendente"
+
+
+def test_google_errors_become_friendly_text(actions, monkeypatch):
+    def broken(days):
+        raise RuntimeError("Arquivo credentials.json não encontrado")
+
+    monkeypatch.setattr(core.google_data, "agenda_summary", broken)
+
+    answer, task = core.reply_to("minha agenda", [])
+
+    assert task().startswith("Desculpe, senhor. Não consegui consultar o Google: Arquivo credentials.json")

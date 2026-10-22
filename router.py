@@ -36,6 +36,18 @@ ACTION_PATTERN = re.compile(
     r"\b(abr(a|e|ir)|inici\w*|execut\w*|lanc\w*|carreg\w*)\b"
 )
 
+# Consultas ao Google (só na janela de chat do notebook, que tem o login do Google).
+GOOGLE_AGENDA_PREFIX = "google_agenda:"
+GOOGLE_CLASSROOM = "google_classroom"
+GOOGLE_ANSWER = "Um momento, senhor. Estou consultando."
+
+AGENDA_PATTERN = re.compile(
+    r"\b(agenda|compromissos?|eventos?|o que (eu )?tenho)\b"
+)
+CLASSROOM_PATTERN = re.compile(
+    r"\b(classroom|(tarefas?|atividades?|trabalhos?) (pendentes?|para entregar|da faculdade))\b"
+)
+
 # Perguntas sobre o programa não são ordens para abri-lo.
 QUESTION_PREFIXES = ("como ", "o que ", "por que ", "porque ", "qual ", "quando ")
 
@@ -61,8 +73,39 @@ def claude_code_command(task):
     return CLAUDE_CODE_PREFIX + task.strip()[:CLAUDE_CODE_MAX_TASK], CLAUDE_CODE_ANSWER
 
 
+def agenda_command(days):
+    days = min(max(int(days), 1), 7)
+    return f"{GOOGLE_AGENDA_PREFIX}{days}", GOOGLE_ANSWER
+
+
+def detect_google(question):
+    """Reconhece pedidos de agenda ou Classroom sem IA. Retorna (comando, resposta) ou None."""
+
+    text = normalize(question)
+
+    if CLASSROOM_PATTERN.search(text):
+        return GOOGLE_CLASSROOM, GOOGLE_ANSWER
+
+    if AGENDA_PATTERN.search(text):
+        if "semana" in text:
+            return agenda_command(7)
+
+        if "amanha" in text:
+            return agenda_command(2)
+
+        return agenda_command(1)
+
+    return None
+
+
 def command_for_tool(name, arguments):
     """Converte uma ferramenta escolhida pela IA em (comando, resposta falada), ou None."""
+
+    if name == "ver_agenda":
+        return agenda_command(arguments.get("dias", 1))
+
+    if name == "ver_tarefas_classroom":
+        return GOOGLE_CLASSROOM, GOOGLE_ANSWER
 
     for item in COMMANDS:
         if item["tool"] == name:

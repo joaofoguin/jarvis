@@ -3,3 +3,5 @@ venv/
 __pycache__/
 .vercel
 .pytest_cache/
+credentials.json
+google_token.json
