@@ -67,3 +67,8 @@ def test_ignores_non_google_requests(question):
 def test_agenda_tool_clamps_days():
     assert command_for_tool("ver_agenda", {"dias": 30})[0] == "google_agenda:7"
     assert command_for_tool("ver_agenda", {"dias": 0})[0] == "google_agenda:1"
+
+
+@pytest.mark.parametrize("question", ["como estão os insights do meu vídeo", "métricas do meu canal", "abre meu youtube studio"])
+def test_detects_youtube_requests(question):
+    assert detect_google(question)[0] == "google_youtube"

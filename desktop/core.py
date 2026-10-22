@@ -1,8 +1,12 @@
 import google_data
+import reports
 
 from agent.agent import call_claude_code, run_action
 from llm import GOOGLE_TOOLS, TOOLS, LLMError, ask_llm
-from router import CLAUDE_CODE_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, detect_command, detect_google
+from router import (
+    CLAUDE_CODE_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
+    detect_command, detect_google, normalize
+)
 
 
 # Mensagens anteriores enviadas à IA. Mais contexto custa mais tokens.
@@ -45,6 +49,9 @@ def reply_to(text, history):
     if command == GOOGLE_CLASSROOM:
         return answer, lambda: run_google(google_data.classroom_summary, None, text)
 
+    if command == GOOGLE_YOUTUBE:
+        return answer, lambda: with_pdf(text, "Relatorio YouTube", run_google(google_data.youtube_summary, text))
+
     try:
         run_action(command)
 
@@ -72,3 +79,21 @@ def run_google(function, *args):
     except Exception as error:
         print("ERRO NO GOOGLE:", repr(error))
         return f"Desculpe, senhor. Não consegui consultar o Google: {error}"
+
+
+def with_pdf(request, title, result):
+    """Se o pedido falar em PDF ou relatório, salva o resultado em PDF e abre o arquivo."""
+
+    text = normalize(request)
+
+    if "pdf" not in text and "relatorio" not in text:
+        return result
+
+    try:
+        path = reports.save_pdf(title, result)
+        reports.open_file(path)
+
+    except Exception as error:
+        return f"{result}\n\nNão consegui gerar o PDF: {error}"
+
+    return f"{result}\n\nRelatório salvo em {path}"

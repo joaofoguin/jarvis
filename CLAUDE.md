@@ -9,7 +9,7 @@
 - As rotas da fila exigem `AGENT_TOKEN`. O agente fecha cada comando como `completed`, `failed` ou `rejected`.
 - Ações que a IA pode escolher ficam em `TOOLS` (`llm.py`) e viram comandos por `command_for_tool` (`router.py`). Tarefas `claude_code:` rodam só dentro de `JARVIS_WORKSPACE`, sem Bash.
 - A janela de chat (`desktop/`) reusa `router.py`, `llm.py` e as ações de `agent/agent.py`. Não duplique essa lógica.
-- Google (Agenda e Classroom) é só leitura e só no notebook (`google_data.py`). Nunca versione `credentials.json` nem `google_token.json`.
+- Google (Agenda, Classroom e YouTube) é só leitura e só no notebook (`google_data.py`). Nunca versione `credentials.json` nem `google_token*.json`.
 - O agente local só executa ações de uma lista permitida. Nunca execute texto livre como comando de terminal.
 - Nunca versione `.env`, chaves ou strings de conexão.
 - Testes: `pip install -r requirements-dev.txt` e `python -m pytest`. Não chame APIs reais nos testes.

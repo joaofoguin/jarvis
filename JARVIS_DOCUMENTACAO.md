@@ -349,6 +349,14 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - Configuração: `credentials.json` (cliente OAuth do tipo "App para computador", criado no Google Cloud) fica na raiz do projeto. No primeiro uso, o navegador abre para o login, e o token fica salvo em `google_token.json`. Esses arquivos estão no `.gitignore`.
 - Várias contas: defina `GOOGLE_ACCOUNTS=email1,email2` no `.env`. Cada conta faz login uma vez (o navegador já abre com o e-mail sugerido) e ganha seu próprio `google_token_<email>.json`. A agenda e o Classroom juntam as contas e marcam cada linha com o e-mail. Se uma conta falhar, as outras continuam aparecendo. Se o pedido citar parte de um e-mail ("conta discente", "uenp"), só essa conta é consultada.
 
+### Atualização de 22/10/2026: métricas do YouTube e relatório em PDF
+
+- `google_data.youtube_summary` lê o canal (inscritos e visualizações), os 5 vídeos mais recentes e, do último vídeo, as métricas do YouTube Analytics (tempo assistido, duração média, porcentagem assistida, inscritos ganhos e compartilhamentos). O acesso é somente leitura, com `youtube.readonly` e `yt-analytics.readonly`.
+- O YouTube tem um login separado, só na conta do canal, salvo em `google_token_<email>_youtube.json`. A conta vem do pedido ou de `YOUTUBE_ACCOUNT` no `.env`.
+- O roteador reconhece "youtube", "insights" e "métricas do meu vídeo/canal" sem gastar tokens. A IA também pode escolher a ferramenta `ver_youtube`.
+- Se o pedido citar "PDF" ou "relatório", `reports.py` (fpdf2) salva o resultado em PDF na pasta `JARVIS_WORKSPACE` (ou em Documentos) e abre o arquivo. O PDF é gerado pelo próprio JARVIS, sem IA e sem terminal.
+- No Google Cloud, é preciso ativar a **YouTube Data API v3** e a **YouTube Analytics API** no projeto.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados
