@@ -39,10 +39,14 @@ ACTION_PATTERN = re.compile(
 # Consultas ao Google (só na janela de chat do notebook, que tem o login do Google).
 GOOGLE_AGENDA_PREFIX = "google_agenda:"
 GOOGLE_CLASSROOM = "google_classroom"
+GOOGLE_YOUTUBE = "google_youtube"
 GOOGLE_ANSWER = "Um momento, senhor. Estou consultando."
 
 AGENDA_PATTERN = re.compile(
     r"\b(agenda|compromissos?|eventos?|o que (eu )?tenho)\b"
+)
+YOUTUBE_PATTERN = re.compile(
+    r"\b(youtube|insights?|(metricas|estatisticas|desempenho) do (meu )?(video|canal))\b"
 )
 CLASSROOM_PATTERN = re.compile(
     r"\b(classroom|(tarefas?|atividades?|trabalhos?) (pendentes?|para entregar|da faculdade))\b"
@@ -83,6 +87,9 @@ def detect_google(question):
 
     text = normalize(question)
 
+    if YOUTUBE_PATTERN.search(text):
+        return GOOGLE_YOUTUBE, GOOGLE_ANSWER
+
     if CLASSROOM_PATTERN.search(text):
         return GOOGLE_CLASSROOM, GOOGLE_ANSWER
 
@@ -106,6 +113,9 @@ def command_for_tool(name, arguments):
 
     if name == "ver_tarefas_classroom":
         return GOOGLE_CLASSROOM, GOOGLE_ANSWER
+
+    if name == "ver_youtube":
+        return GOOGLE_YOUTUBE, GOOGLE_ANSWER
 
     for item in COMMANDS:
         if item["tool"] == name:

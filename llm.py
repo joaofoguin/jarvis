@@ -68,6 +68,11 @@ GOOGLE_TOOLS = [
     tool(
         "ver_tarefas_classroom",
         "Lista as atividades pendentes do usuário no Google Classroom."
+    ),
+    tool(
+        "ver_youtube",
+        "Mostra as métricas do canal do YouTube do usuário e dos vídeos mais recentes "
+        "(visualizações, curtidas, tempo assistido, retenção, inscritos ganhos)."
     )
 ]
 

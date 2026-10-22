@@ -11,6 +11,12 @@ SCOPES = [
     "https://www.googleapis.com/auth/classroom.coursework.me.readonly"
 ]
 
+# YouTube pede um login separado, só na conta do canal, para não refazer o login das outras contas.
+YOUTUBE_SCOPES = [
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/yt-analytics.readonly"
+]
+
 # O Google devolve classroom.coursework.me.readonly com o nome antigo
 # (classroom.student-submissions.me.readonly). É o mesmo acesso, então aceitamos.
 os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
@@ -40,23 +46,25 @@ def accounts(request=""):
     return mentioned or emails or [None]
 
 
-def token_file(account):
+def token_file(account, kind=""):
+    suffix = f"_{kind}" if kind else ""
+
     if not account:
-        return "google_token.json"
+        return f"google_token{suffix}.json"
 
-    return "google_token_" + re.sub(r"[^a-zA-Z0-9]+", "_", account) + ".json"
+    return "google_token_" + re.sub(r"[^a-zA-Z0-9]+", "_", account) + suffix + ".json"
 
 
-def get_credentials(account):
+def get_credentials(account, scopes=SCOPES, kind=""):
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
 
-    path = token_file(account)
+    path = token_file(account, kind)
     creds = None
 
     if os.path.exists(path):
-        creds = Credentials.from_authorized_user_file(path, SCOPES)
+        creds = Credentials.from_authorized_user_file(path, scopes)
 
     if creds and creds.valid:
         return creds
@@ -68,7 +76,7 @@ def get_credentials(account):
             raise RuntimeError(f"Arquivo {CREDENTIALS_FILE} não encontrado. Veja o guia de configuração do Google.")
 
         # Abre o navegador para o login do Google; só acontece na primeira vez de cada conta.
-        flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
+        flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, scopes)
         creds = flow.run_local_server(
             port=0,
             timeout_seconds=LOGIN_TIMEOUT,
@@ -249,3 +257,107 @@ def due_date(item):
         return None
 
     return datetime(date["year"], date["month"], date["day"])
+
+
+def youtube_account(request):
+    """A conta citada no pedido; senão YOUTUBE_ACCOUNT; senão a primeira conta."""
+
+    candidates = accounts(request)
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    return os.getenv("YOUTUBE_ACCOUNT") or candidates[0]
+
+
+def youtube_summary(request="", youtube=None, analytics=None):
+    if not youtube:
+        from googleapiclient.discovery import build
+
+        creds = get_credentials(youtube_account(request), YOUTUBE_SCOPES, "youtube")
+        youtube = build("youtube", "v3", credentials=creds, cache_discovery=False)
+        analytics = build("youtubeAnalytics", "v2", credentials=creds, cache_discovery=False)
+
+    channels = youtube.channels().list(part="snippet,statistics,contentDetails", mine=True).execute().get("items", [])
+
+    if not channels:
+        return "Essa conta do Google não tem um canal do YouTube, senhor."
+
+    channel = channels[0]
+    stats = channel.get("statistics", {})
+    uploads = channel["contentDetails"]["relatedPlaylists"]["uploads"]
+
+    lines = [
+        f"Canal {channel['snippet']['title']}: {number(stats.get('subscriberCount'))} inscritos, "
+        f"{number(stats.get('viewCount'))} visualizações no total."
+    ]
+
+    playlist = youtube.playlistItems().list(part="contentDetails", playlistId=uploads, maxResults=5).execute()
+    ids = [item["contentDetails"]["videoId"] for item in playlist.get("items", [])]
+
+    if not ids:
+        return "\n".join(lines + ["O canal ainda não tem vídeos."])
+
+    videos = youtube.videos().list(part="snippet,statistics", id=",".join(ids)).execute().get("items", [])
+    latest = videos[0]
+    published = datetime.fromisoformat(latest["snippet"]["publishedAt"].replace("Z", "+00:00"))
+    video_stats = latest.get("statistics", {})
+
+    lines += [
+        "",
+        f"Último vídeo: \"{latest['snippet']['title']}\" (publicado em {published:%d/%m/%Y})",
+        f"- Visualizações: {number(video_stats.get('viewCount'))}",
+        f"- Curtidas: {number(video_stats.get('likeCount'))}",
+        f"- Comentários: {number(video_stats.get('commentCount'))}"
+    ]
+
+    lines += video_analytics(analytics, latest["id"], published)
+
+    if len(videos) > 1:
+        lines += ["", "Outros vídeos recentes:"]
+        lines += [
+            f"- {video['snippet']['title']}: {number(video.get('statistics', {}).get('viewCount'))} visualizações"
+            for video in videos[1:]
+        ]
+
+    return "\n".join(lines)
+
+
+def video_analytics(analytics, video_id, published):
+    """Métricas de retenção do YouTube Analytics. Os dados chegam com 2 ou 3 dias de atraso."""
+
+    metrics = "estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,shares"
+
+    try:
+        report = analytics.reports().query(
+            ids="channel==MINE",
+            startDate=f"{published:%Y-%m-%d}",
+            endDate=f"{datetime.now():%Y-%m-%d}",
+            metrics=metrics,
+            filters=f"video=={video_id}"
+        ).execute()
+
+    except Exception as error:
+        return [f"- Não consegui ler o YouTube Analytics: {short_error(error)}"]
+
+    rows = report.get("rows") or []
+
+    if not rows:
+        return ["- O YouTube Analytics ainda não tem dados deste vídeo (eles chegam com 2 ou 3 dias de atraso)."]
+
+    minutes, duration, percentage, subscribers, shares = rows[0]
+
+    return [
+        f"- Tempo assistido: {number(minutes)} minutos",
+        f"- Duração média de visualização: {int(duration) // 60}:{int(duration) % 60:02d}",
+        f"- Porcentagem média assistida: {percentage:.0f}%",
+        f"- Inscritos ganhos: {number(subscribers)}",
+        f"- Compartilhamentos: {number(shares)}"
+    ]
+
+
+def number(value):
+    if value is None:
+        return "?"
+
+    return f"{int(float(value)):,}".replace(",", ".")

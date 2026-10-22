@@ -110,3 +110,26 @@ def test_google_errors_become_friendly_text(actions, monkeypatch):
     answer, task = core.reply_to("minha agenda", [])
 
     assert task().startswith("Desculpe, senhor. Não consegui consultar o Google: Arquivo credentials.json")
+
+
+def test_youtube_request_runs_in_background(actions, monkeypatch):
+    monkeypatch.setattr(core, "ask_llm", lambda *args: pytest.fail("não deveria chamar a IA"))
+    monkeypatch.setattr(core.google_data, "youtube_summary", lambda request: f"métricas para: {request}")
+
+    answer, task = core.reply_to("como estão os insights do meu vídeo", [])
+
+    assert task() == "métricas para: como estão os insights do meu vídeo"
+
+
+def test_youtube_report_saved_as_pdf_when_asked(actions, monkeypatch, tmp_path):
+    monkeypatch.setenv("JARVIS_WORKSPACE", str(tmp_path))
+    monkeypatch.setattr(core.reports, "open_file", lambda path: None)
+    monkeypatch.setattr(core.google_data, "youtube_summary", lambda request: "Canal Na Base do Bit: 100 inscritos 🎬")
+
+    answer, task = core.reply_to("veja os insights do youtube e gere um relatório em pdf", [])
+    result = task()
+
+    pdfs = list(tmp_path.glob("relatorio_youtube_*.pdf"))
+    assert len(pdfs) == 1
+    assert pdfs[0].read_bytes().startswith(b"%PDF")
+    assert f"Relatório salvo em {pdfs[0]}" in result

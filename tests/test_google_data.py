@@ -212,3 +212,91 @@ def test_api_errors_are_short_and_do_not_claim_nothing_pending():
         "Não consegui ler o Classroom de eu@uenp.edu.br: "
         "Google Classroom API has not been used in project 123 before or it is disabled."
     )
+
+
+class FakeYouTube:
+    def __init__(self, videos):
+        self.videos_data = videos
+
+    def channels(self):
+        return self
+
+    def playlistItems(self):
+        return FakePlaylist([video["id"] for video in self.videos_data])
+
+    def videos(self):
+        return FakeVideos(self.videos_data)
+
+    def list(self, **kwargs):
+        return Call({"items": [{
+            "snippet": {"title": "Na Base do Bit"},
+            "statistics": {"subscriberCount": "1234", "viewCount": "56789"},
+            "contentDetails": {"relatedPlaylists": {"uploads": "UU1"}}
+        }]})
+
+
+class FakePlaylist:
+    def __init__(self, ids):
+        self.ids = ids
+
+    def list(self, **kwargs):
+        return Call({"items": [{"contentDetails": {"videoId": i}} for i in self.ids]})
+
+
+class FakeVideos:
+    def __init__(self, videos):
+        self.data = videos
+
+    def list(self, **kwargs):
+        return Call({"items": self.data})
+
+
+class FakeAnalytics:
+    def __init__(self, rows):
+        self.rows = rows
+        self.kwargs = None
+
+    def reports(self):
+        return self
+
+    def query(self, **kwargs):
+        self.kwargs = kwargs
+        return Call({"rows": self.rows})
+
+
+def video(video_id, title, views):
+    return {
+        "id": video_id,
+        "snippet": {"title": title, "publishedAt": "2026-10-15T18:00:00Z"},
+        "statistics": {"viewCount": views, "likeCount": "40", "commentCount": "7"}
+    }
+
+
+def test_youtube_summary_with_analytics():
+    analytics = FakeAnalytics([[1500.0, 95, 42.3, 12, 5]])
+    youtube = FakeYouTube([video("v1", "Montei um PC", "2500"), video("v2", "Vídeo antigo", "900")])
+
+    text = google_data.youtube_summary("", youtube, analytics)
+
+    assert "Canal Na Base do Bit: 1.234 inscritos, 56.789 visualizações no total." in text
+    assert 'Último vídeo: "Montei um PC" (publicado em 15/10/2026)' in text
+    assert "- Visualizações: 2.500" in text
+    assert "- Duração média de visualização: 1:35" in text
+    assert "- Porcentagem média assistida: 42%" in text
+    assert "- Vídeo antigo: 900 visualizações" in text
+    assert analytics.kwargs["filters"] == "video==v1"
+
+
+def test_youtube_summary_without_analytics_yet():
+    text = google_data.youtube_summary("", FakeYouTube([video("v1", "Novo", "10")]), FakeAnalytics([]))
+
+    assert "ainda não tem dados deste vídeo" in text
+
+
+def test_youtube_account_choice(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ACCOUNTS", "joaopedrosrlima@gmail.com,basedobit01@gmail.com")
+    monkeypatch.setenv("YOUTUBE_ACCOUNT", "basedobit01@gmail.com")
+
+    assert google_data.youtube_account("insights do meu vídeo") == "basedobit01@gmail.com"
+    assert google_data.youtube_account("youtube da conta joaopedrosrlima") == "joaopedrosrlima@gmail.com"
+    assert google_data.token_file("basedobit01@gmail.com", "youtube") == "google_token_basedobit01_gmail_com_youtube.json"
