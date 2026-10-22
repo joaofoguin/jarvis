@@ -116,13 +116,14 @@ def parse_card(text):
 
 
 def find_contacts(name, cards=None):
-    """Contatos cujo nome contém o texto pedido; o nome exato vem primeiro."""
+    """Contatos com o nome exato pedido; se não houver, os que contêm o texto."""
 
     wanted = normalize(name)
     contacts = [parse_card(card) for card in (address_cards() if cards is None else cards)]
-    found = [contact for contact in contacts if wanted and wanted in normalize(contact[0])]
+    exact = [contact for contact in contacts if normalize(contact[0]) == wanted]
 
-    return sorted(found, key=lambda contact: normalize(contact[0]) != wanted)
+    # "Amor" não deve trazer junto "Pedro Amorim" nem "Julya Namorada Jow".
+    return exact or [contact for contact in contacts if wanted and wanted in normalize(contact[0])]
 
 
 def contact_summary(name, cards=None):
