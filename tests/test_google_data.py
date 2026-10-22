@@ -300,3 +300,21 @@ def test_youtube_account_choice(monkeypatch):
     assert google_data.youtube_account("insights do meu vídeo") == "basedobit01@gmail.com"
     assert google_data.youtube_account("youtube da conta joaopedrosrlima") == "joaopedrosrlima@gmail.com"
     assert google_data.token_file("basedobit01@gmail.com", "youtube") == "google_token_basedobit01_gmail_com_youtube.json"
+
+
+def test_classroom_since_keeps_only_recent_pending_work():
+    from datetime import datetime, timezone
+
+    service = FakeClassroom(
+        courses=[{"id": "c1", "name": "Redes"}],
+        work={"c1": [
+            {"id": "w1", "title": "Relatório novo", "creationTime": "2026-10-20T10:00:00.000Z"},
+            {"id": "w2", "title": "Lista antiga", "creationTime": "2026-08-01T10:00:00.000Z"},
+            {"id": "w3", "title": "Nova, mas entregue", "creationTime": "2026-10-21T10:00:00.000Z"}
+        ]},
+        pending={"c1": ["w1", "w2"]}
+    )
+
+    text = google_data.classroom_summary([(None, service)], since=datetime(2026, 9, 22, tzinfo=timezone.utc))
+
+    assert text.splitlines() == ["Atividades pendentes no Classroom:", "- Relatório novo (Redes, sem prazo)"]

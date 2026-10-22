@@ -62,11 +62,19 @@
   .text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
   .muted { color: var(--muted); font-size: 13px; }
   .list { display: flex; flex-direction: column; gap: 4px; }
-  .news {
-    text-align: left; border: none; border-radius: 10px; padding: 10px 12px; background: transparent; color: var(--text);
-    display: flex; flex-direction: column; gap: 2px;
+  /* Notícias em blocos, como os do Iniciar do Windows 10. */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); grid-auto-rows: 132px; grid-auto-flow: dense; gap: 6px; }
+  .tile {
+    position: relative; text-align: left; border: 1px solid transparent; border-radius: 4px; padding: 12px 14px; color: var(--text);
+    display: flex; flex-direction: column; justify-content: space-between; gap: 6px; overflow: hidden;
+    background: color-mix(in srgb, var(--accent) var(--tint), var(--panel));
   }
-  .news:hover { background: var(--panel); }
+  .tile:hover, .tile:focus-visible { border-color: var(--accent); }
+  .tile .topic { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .title { font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+  .tile.big { grid-column: span 2; grid-row: span 2; }
+  .tile.big .title { font-size: 20px; font-weight: 300; -webkit-line-clamp: 6; }
+  .tile.wide { grid-column: span 2; }
   .entry { padding: 8px 0; border-bottom: 1px solid #16222F; font-size: 14px; }
   .entry:last-child { border-bottom: none; }
   .stats { display: flex; gap: 28px; flex-wrap: wrap; }
@@ -114,8 +122,8 @@
       <div class="date" id="date"></div>
     </div>
     <div class="card"><span class="label">Agenda</span><div class="text" id="agenda">Carregando…</div></div>
-    <div class="card"><span class="label">Classroom</span><div class="text" id="classroom">Carregando…</div></div>
-    <div class="card wide"><span class="label">Notícias</span><div class="list" id="news">Carregando…</div></div>
+    <div class="card"><span class="label">Classroom · 30 dias</span><div class="text" id="classroom">Carregando…</div></div>
+    <div class="card wide"><span class="label">Notícias</span><div class="tiles" id="news">Carregando…</div></div>
     <div class="card"><span class="label">Histórico</span><div id="history">Carregando…</div></div>
     <div class="card"><span class="label">Uso de IA hoje</span><div id="usage">Carregando…</div></div>
   </aside>
@@ -164,14 +172,22 @@
   const RENDER = {
     agenda: (text) => $("agenda").textContent = withoutTitle(text),
     classroom: (text) => $("classroom").textContent = withoutTitle(text),
-    news: (items) => $("news").replaceChildren(...(items.length ? items.map((item) => {
-      const button = element("button", { type: "button", className: "news" }, [
-        element("span", { textContent: item.title }),
-        element("span", { className: "muted", textContent: [item.source, item.topic, item.when && ago(item.when)].filter(Boolean).join(" · ") })
-      ]);
-      button.onclick = () => api().open_link(item.link);
-      return button;
-    }) : [element("span", { className: "muted", textContent: "Escolha temas de notícias nas preferências." })])),
+    news: (items) => {
+      const topics = [...new Set(items.map((item) => item.topic))];
+
+      $("news").replaceChildren(...(items.length ? items.map((item, index) => {
+        // O primeiro bloco é grande e alguns são largos, como no Iniciar; cada tema tem um tom.
+        const size = index === 0 ? "big" : index % 5 === 3 ? "wide" : "";
+        const tile = element("button", { type: "button", className: `tile ${size}` }, [
+          element("span", { className: "topic", textContent: item.topic }),
+          element("span", { className: "title", textContent: item.title }),
+          element("span", { className: "muted", textContent: [item.source, item.when && ago(item.when)].filter(Boolean).join(" · ") })
+        ]);
+        tile.style.setProperty("--tint", `${8 + topics.indexOf(item.topic) % 3 * 6}%`);
+        tile.onclick = () => api().open_link(item.link);
+        return tile;
+      }) : [element("span", { className: "muted", textContent: "Escolha temas de notícias nas preferências." })]));
+    },
     history: (entries) => $("history").replaceChildren(...(entries.length ? entries.map((entry) => element("div", { className: "entry" }, [
       element("div", { textContent: entry.text }),
       element("div", { className: "muted", textContent: `${entry.when.slice(11)} · ${entry.answer}` })

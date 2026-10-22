@@ -59,6 +59,7 @@
 
   input[type="range"] { accent-color: var(--accent); width: 100%; }
   input[type="url"], input[type="text"] { flex: 1 1 220px; min-height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--text); padding: 0 12px; }
+  input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
   input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .primary { min-height: 44px; padding: 0 18px; border-radius: 10px; border: none; background: var(--accent); color: #04111A; font-weight: 600; }
   .ghost { min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); }
@@ -150,6 +151,14 @@
     </section>
 
     <section class="card">
+      <h2>Classroom</h2>
+      <span class="muted">Contas usadas no painel (atividades pendentes dos últimos 30 dias) e nos avisos do mural. Sem nenhuma marcada, valem todas.</span>
+      <div class="list" id="accounts"></div>
+      <button type="button" class="ghost" id="connect" style="align-self: flex-start">Conectar avisos do mural</button>
+      <span class="muted" id="notices-state"></span>
+    </section>
+
+    <section class="card">
       <h2>Repositórios de Skills</h2>
       <span class="muted">Para as tarefas do Claude Code. As pastas com SKILL.md vão para a pasta de trabalho do JARVIS.</span>
       <div class="list" id="skills"></div>
@@ -215,6 +224,16 @@
     for (const key of ["wake_word", "speak_replies"]) {
       $(key).setAttribute("aria-pressed", String(preferences[key]));
     }
+
+    $("accounts").replaceChildren(...(window.googleAccounts.length ? window.googleAccounts.map((account) => {
+      const box = element("input", { type: "checkbox", checked: preferences.classroom_accounts.includes(account) });
+      box.onchange = () => {
+        preferences.classroom_accounts = box.checked
+          ? [...preferences.classroom_accounts, account]
+          : preferences.classroom_accounts.filter((other) => other !== account);
+      };
+      return element("label", { className: "item", style: "justify-content: flex-start; min-height: 44px" }, [box, account]);
+    }) : [element("span", { className: "muted", textContent: "Uma conta só (GOOGLE_ACCOUNTS vazio)." })]));
 
     $("topics").replaceChildren(...preferences.news_topics.map((topic) => element("div", { className: "item" }, [
       element("span", { textContent: topic }),
@@ -325,6 +344,14 @@
 
   $("close").onclick = () => api().hide_panel();
 
+  $("connect").onclick = async () => {
+    status("Abrindo o login do Google no navegador…");
+    show(await api().connect_notices(), () => {
+      $("notices-state").textContent = "Avisos do mural conectados: o JARVIS avisa quando surgir algo novo.";
+      status("Mural conectado.");
+    });
+  };
+
   $("skill-form").onsubmit = async (event) => {
     event.preventDefault();
     status("Baixando o repositório…");
@@ -344,6 +371,10 @@
     const data = await api().load_panel();
     preferences = data.preferences;
     window.voices = data.voices;
+    window.googleAccounts = data.google_accounts;
+    $("notices-state").textContent = data.notices_connected
+      ? "Avisos do mural conectados: o JARVIS avisa quando surgir algo novo."
+      : "Avisos do mural ainda não conectados. Salve as contas e clique em Conectar (abre o login do Google).";
     renderPreferences();
     renderSkills(data.skills);
     renderMemory(data.memory);

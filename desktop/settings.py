@@ -24,7 +24,9 @@ DEFAULTS = {
     # Cor do orbe e da janela.
     "accent": "#3FD4F5",
     # Temas das notícias do painel em tela cheia.
-    "news_topics": ["tecnologia", "inteligência artificial"]
+    "news_topics": ["tecnologia", "inteligência artificial"],
+    # Contas do Classroom no painel e nos avisos do mural. Vazio = todas as de GOOGLE_ACCOUNTS.
+    "classroom_accounts": []
 }
 
 MAX_TOPICS = 10
@@ -75,6 +77,12 @@ def save(values):
         raise ValueError(f"cada tema de notícias precisa ter de 1 a {MAX_TOPIC_LENGTH} letras")
 
     preferences["news_topics"] = list(dict.fromkeys(topics))
+
+    if not isinstance(preferences["classroom_accounts"], list) or not all(
+        isinstance(account, str) and "@" in account for account in preferences["classroom_accounts"]
+    ):
+        raise ValueError("escolha as contas do Classroom pela lista")
+
     preferences = {key: preferences[key] for key in DEFAULTS}
     path().parent.mkdir(parents=True, exist_ok=True)
     path().write_text(json.dumps(preferences, indent=2, ensure_ascii=False), encoding="utf-8")
