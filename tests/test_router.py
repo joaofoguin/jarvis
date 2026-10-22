@@ -1,8 +1,9 @@
 import pytest
 
 from router import (
-    INSTAGRAM_MESSAGES, WHATSAPP_PREFIX,
-    command_for_tool, detect_browser, detect_command, detect_google, is_allowed_command, whatsapp_args
+    ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, WHATSAPP_PREFIX,
+    command_for_tool, detect_browser, detect_command, detect_contact, detect_google, is_allowed_command,
+    whatsapp_args
 )
 
 
@@ -107,3 +108,17 @@ def test_detects_instagram_messages():
 def test_whatsapp_tool_validates_arguments():
     assert command_for_tool("enviar_whatsapp", {"contato": "Amor", "mensagem": ""}) is None
     assert whatsapp_args(command_for_tool("enviar_whatsapp", {"contato": "Amor", "mensagem": "oi"})[0]) == ("Amor", "oi")
+
+
+@pytest.mark.parametrize("question, name", [
+    ("qual o número da Amor?", "amor"),
+    ("me passa o telefone do Pedro Amorim", "pedro amorim"),
+    ("qual o celular da minha namorada", "minha namorada"),
+])
+def test_detects_contact_requests(question, name):
+    assert detect_contact(question)[0] == ICLOUD_CONTACT_PREFIX + name
+
+
+def test_contact_tool():
+    assert command_for_tool("buscar_contato", {"nome": "Amor"})[0] == ICLOUD_CONTACT_PREFIX + "Amor"
+    assert command_for_tool("buscar_contato", {"nome": " "}) is None

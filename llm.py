@@ -95,6 +95,17 @@ BROWSER_TOOLS = [
 ]
 
 
+# Também só no notebook: os contatos do iPhone vêm do iCloud.
+ICLOUD_TOOLS = [
+    tool(
+        "buscar_contato",
+        "Procura um contato do iPhone do usuário pelo nome e mostra os telefones.",
+        {"nome": {"type": "string", "description": "O nome do contato, como o usuário disse."}},
+        ["nome"]
+    )
+]
+
+
 class LLMError(Exception):
     pass
 
