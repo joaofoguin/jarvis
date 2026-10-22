@@ -410,6 +410,15 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - Sem microfone ou sem internet, o chat por texto continua funcionando.
 - Para instalar, rode `pip install -r requirements-desktop.txt`. Na primeira vez, o modelo do "Hey Jarvis" é baixado sozinho.
 
+### Atualização de 22/10/2026: orbe flutuante e chat novo
+
+- A janela de tkinter foi trocada por duas telas web dentro do Python (pywebview, que usa o WebView2 já instalado no Windows). As telas ficam em `desktop/web/`.
+- `orb.html` é o orbe: pequeno, redondo, sem borda e sempre por cima, no canto inferior direito. Ele respira em espera, solta ondas quando ouve, gira quando pensa e mostra barras em volta quando fala. Dá para arrastar.
+- Clique no orbe para falar. Com o botão direito, o chat abre e fecha.
+- `chat.html` é o chat no mesmo visual. Tem botão de microfone, e `Esc` esconde a janela. Fechar a janela só a esconde; para sair, use o ícone perto do relógio.
+- A cor vem de `accent` em `~/.jarvis/preferencias.json` (padrão `#3FD4F5`).
+- O Python fala com as telas por `evaluate_js`, com textos passados por `json.dumps`, e as mensagens entram como texto, nunca como HTML.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados

@@ -13,7 +13,9 @@ DEFAULTS = {
     # Fica ouvindo "Hey Jarvis" o tempo todo.
     "wake_word": True,
     # Lê em voz alta as respostas às perguntas feitas por voz.
-    "speak_replies": True
+    "speak_replies": True,
+    # Cor do orbe e da janela.
+    "accent": "#3FD4F5"
 }
 
 
