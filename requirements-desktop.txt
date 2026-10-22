@@ -7,3 +7,7 @@ google-auth-oauthlib
 fpdf2
 playwright
 caldav
+openwakeword>=0.6
+SpeechRecognition
+pyaudio
+edge-tts

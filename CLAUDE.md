@@ -12,6 +12,7 @@
 - Google (Agenda, Classroom e YouTube) é só leitura e só no notebook (`google_data.py`). Nunca versione `credentials.json` nem `google_token*.json`.
 - Contatos e calendário do iPhone vêm do iCloud (`icloud_data.py`), só leitura e só no notebook, com senha de app em `ICLOUD_APP_PASSWORD`.
 - WhatsApp (app do Windows, `whatsapp_app.py`) e Instagram (navegador, `browser.py`) rodam só no notebook, como ações fixas. Enviar mensagem sempre pede um "sim" antes, e o Enter só vai para a janela do WhatsApp.
+- A voz (`desktop/voice.py`) detecta "Hey Jarvis" no notebook e só depois manda o áudio para o reconhecimento. As preferências ficam em `~/.jarvis/preferencias.json` (`desktop/settings.py`).
 - O que o usuário ensina fica em `memory.py` (arquivos em `~/.jarvis/memoria`). Só os fatos ligados à pergunta vão para a IA; não mande a memória inteira.
 - O agente local só executa ações de uma lista permitida. Nunca execute texto livre como comando de terminal.
 - Nunca versione `.env`, chaves ou strings de conexão.

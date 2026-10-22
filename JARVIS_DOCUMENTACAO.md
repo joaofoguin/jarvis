@@ -400,6 +400,16 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - Quando a IA guarda ou apaga algo, o JARVIS faz uma segunda chamada, sem as ferramentas de memória, para atender o resto da frase. Se não houver mais nada, a IA responde "OK", e o chat mostra só a confirmação.
 - O prompt pede que a IA use sempre `enviar_whatsapp` para enviar ou mudar uma mensagem, em vez de pedir confirmação em texto.
 
+### Atualização de 22/10/2026: conversa por voz
+
+- `desktop/voice.py` fica ouvindo "Hey Jarvis" pelo microfone. A palavra é detectada no próprio notebook com o openWakeWord; nenhum áudio sai do notebook antes dela.
+- Depois do "Hey Jarvis", a frase vai para o reconhecimento de voz do Google em português e segue pelo mesmo `reply_to` do chat. A resposta aparece na janela e é lida por uma voz neural da Microsoft (edge-tts).
+- Depois de responder, o JARVIS espera alguns segundos por outra frase sem precisar de "Hey Jarvis", para dar para conversar. Se você ficar em silêncio, ele volta a esperar a palavra de ativação.
+- O item "Falar agora" no menu do ícone faz o JARVIS ouvir sem a palavra de ativação.
+- As preferências ficam em `~/.jarvis/preferencias.json` (`desktop/settings.py`): voz, velocidade, ouvir "Hey Jarvis" e responder falando. O painel de preferências vai editar esse arquivo.
+- Sem microfone ou sem internet, o chat por texto continua funcionando.
+- Para instalar, rode `pip install -r requirements-desktop.txt`. Na primeira vez, o modelo do "Hey Jarvis" é baixado sozinho.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados
