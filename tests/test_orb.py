@@ -29,3 +29,16 @@ def test_accent_color_and_scale_are_used():
 
     assert cyan.size == (300, 300)
     assert cyan.getpixel((150, 150 - 40))[:3] != gold.getpixel((150, 150 - 40))[:3]
+
+
+def test_an_error_in_the_orb_thread_is_reported(monkeypatch):
+    shown = orb.Orb("#3FD4F5")
+    errors = []
+
+    def fail():
+        raise OSError("sem janela")
+
+    monkeypatch.setattr(shown, "run", fail)
+    shown.run_safely(errors.append)
+
+    assert str(errors[0]) == "sem janela"
