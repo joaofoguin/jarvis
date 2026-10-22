@@ -11,3 +11,4 @@ openwakeword>=0.6
 SpeechRecognition
 sounddevice
 edge-tts
+pywebview

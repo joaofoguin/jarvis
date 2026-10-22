@@ -1,12 +1,16 @@
-"""Janela de chat do JARVIS. Rode com: pythonw -m desktop.app (na raiz do projeto)."""
+"""JARVIS no notebook: um orbe flutuante e uma janela de chat. Rode com: pythonw -m desktop.app (na raiz do projeto).
 
+Clique no orbe para falar; com o botão direito, o chat abre e fecha. O orbe pode ser arrastado.
+"""
+
+import json
 import os
-import queue
 import threading
-import tkinter as tk
+from pathlib import Path
 
 import keyboard
 import pystray
+import webview
 
 from PIL import Image, ImageDraw
 
@@ -17,17 +21,12 @@ from desktop.voice import Voice
 
 HOTKEY = os.getenv("JARVIS_HOTKEY", "ctrl+alt+j")
 
-# O título da janela mostra o que a voz está fazendo.
-VOICE_STATES = {
-    "idle": "",
-    "listening": " · ouvindo",
-    "thinking": " · pensando",
-    "speaking": " · falando"
-}
+WEB = Path(__file__).resolve().parent / "web"
 
-# Outras threads (atalho, ícone, IA) só conversam com a janela por esta fila,
-# porque o tkinter não pode ser usado fora da thread principal.
-events = queue.Queue()
+ORB_SIZE = 160
+
+# Distância do orbe até o canto inferior direito da tela.
+ORB_MARGIN = 40
 
 
 def make_icon_image():
@@ -36,147 +35,141 @@ def make_icon_image():
     return image
 
 
-class ChatWindow:
+def call_js(window, function, *args):
+    # json.dumps deixa qualquer texto seguro como argumento de JavaScript.
+    window.evaluate_js(f"{function}({', '.join(json.dumps(arg) for arg in args)})")
 
-    def __init__(self, root):
-        self.root = root
+
+class Jarvis:
+    """Liga a voz, o orbe e o chat. send, talk, toggle_chat e hide_chat são chamados pelo JavaScript das janelas."""
+
+    def __init__(self, preferences, orb, chat):
+        self.accent = preferences["accent"]
+        self.orb = orb
+        self.chat = chat
+        self.chat_visible = False
+        self.quitting = False
         self.history = []
+        self.voice = Voice(on_text=self.answer_aloud, on_state=self.show_state, preferences=preferences)
 
-        root.title("JARVIS")
-        root.geometry("520x620")
-        root.protocol("WM_DELETE_WINDOW", root.withdraw)
-        root.bind("<Escape>", lambda event: root.withdraw())
+    def send(self, text):
+        self.write("user", text)
+        self.answer(text)
 
-        self.log = tk.Text(root, wrap="word", state="disabled", font=("Segoe UI", 11))
-        self.log.pack(fill="both", expand=True, padx=8, pady=(8, 4))
+    def talk(self):
+        self.voice.trigger.set()
 
-        self.entry = tk.Entry(root, font=("Segoe UI", 11))
-        self.entry.pack(fill="x", padx=8, pady=(4, 8))
-        self.entry.bind("<Return>", self.send)
+    def toggle_chat(self):
+        if self.chat_visible:
+            self.hide_chat()
+        else:
+            self.show_chat()
 
-        self.write("JARVIS", f"Online, senhor. Use {HOTKEY} para me chamar e Esc para me esconder.")
+    def hide_chat(self):
+        self.chat_visible = False
+        self.chat.hide()
 
-    def write(self, author, text):
-        self.log.configure(state="normal")
-        self.log.insert("end", f"{author}: {text}\n\n")
-        self.log.configure(state="disabled")
-        self.log.see("end")
+    def show_chat(self):
+        self.chat_visible = True
+        self.chat.show()
+        call_js(self.chat, "focusInput")
 
-    def send(self, event=None):
-        text = self.entry.get().strip()
+    def start(self):
+        # Roda numa thread própria assim que as janelas abrem.
+        for window in (self.orb, self.chat):
+            call_js(window, "setAccent", self.accent)
 
-        if not text:
-            return
+        self.write("jarvis", f"Online, senhor. Diga \"Hey Jarvis\", clique no orbe ou use {HOTKEY} para o chat.")
 
-        self.entry.delete(0, "end")
-        self.write("Você", text)
+        try:
+            self.voice.run()
 
-        threading.Thread(target=self.answer, args=(text, list(self.history)), daemon=True).start()
+        except Exception as error:
+            # Sem microfone ou sem as bibliotecas de voz, o chat por texto continua funcionando.
+            self.write("jarvis", f"Voz desligada: {error}")
 
-    def answer(self, text, history, say=None):
-        answer, task = reply_to(text, history)
-        events.put(("reply", text, answer))
+    def answer_aloud(self, text):
+        # Roda na thread da voz, que só volta a ouvir depois de responder.
+        self.write("user", text)
+        self.answer(text, say=self.voice.say)
+
+    def answer(self, text, say=None):
+        answer, task = reply_to(text, list(self.history))
+        self.history += [{"role": "user", "content": text}, {"role": "assistant", "content": answer}]
+        self.write("jarvis", answer)
 
         if say:
             say(answer)
 
         if task:
             note = task()
-            events.put(("note", note))
+            # Guarda o resultado para a IA poder responder perguntas sobre ele depois.
+            self.history.append({"role": "assistant", "content": note})
+            self.write("jarvis", note)
 
             if say:
                 say(note)
 
-    def answer_aloud(self, voice, text):
-        # Roda na thread da voz, que só volta a ouvir depois de responder.
-        events.put(("heard", text))
-        self.answer(text, list(self.history), say=voice.say)
+    def write(self, author, text):
+        call_js(self.chat, "addMessage", author, text)
 
-    def show(self):
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-        self.entry.focus_set()
+    def show_state(self, state):
+        for window in (self.orb, self.chat):
+            call_js(window, "setState", state)
 
-    def toggle(self):
-        if self.root.state() == "normal":
-            self.root.withdraw()
-        else:
-            self.show()
+    def closing(self):
+        if self.quitting:
+            return True
 
-    def process_events(self, icon):
-        while not events.empty():
-            event = events.get()
-
-            if event[0] == "reply":
-                _, text, answer = event
-                self.write("JARVIS", answer)
-                self.history += [
-                    {"role": "user", "content": text},
-                    {"role": "assistant", "content": answer}
-                ]
-
-            elif event[0] == "heard":
-                self.write("Você", event[1])
-
-            elif event[0] == "state":
-                self.root.title("JARVIS" + VOICE_STATES[event[1]])
-
-            elif event[0] == "note":
-                self.write("JARVIS", event[1])
-                # Guarda o resultado para a IA poder responder perguntas sobre ele depois.
-                self.history.append({"role": "assistant", "content": event[1]})
-
-            elif event[0] == "toggle":
-                self.toggle()
-
-            elif event[0] == "show":
-                self.show()
-
-            elif event[0] == "quit":
-                icon.stop()
-                self.root.destroy()
-                return
-
-        self.root.after(100, self.process_events, icon)
-
-
-def run_voice(voice):
-    try:
-        voice.run()
-
-    except Exception as error:
-        # Sem microfone ou sem as bibliotecas de voz, o chat por texto continua funcionando.
-        events.put(("note", f"Voz desligada: {error}"))
+        # Fechar o chat só esconde a janela; para sair, use o ícone perto do relógio.
+        self.hide_chat()
+        return False
 
 
 def main():
-    root = tk.Tk()
-    window = ChatWindow(root)
+    screen = webview.screens[0]
 
-    voice = Voice(
-        on_text=lambda text: window.answer_aloud(voice, text),
-        on_state=lambda state: events.put(("state", state)),
-        preferences=settings.load()
+    orb = webview.create_window(
+        "JARVIS",
+        str(WEB / "orb.html"),
+        width=ORB_SIZE,
+        height=ORB_SIZE,
+        x=screen.width - ORB_SIZE - ORB_MARGIN,
+        y=screen.height - ORB_SIZE - ORB_MARGIN * 2,
+        frameless=True,
+        transparent=True,
+        on_top=True,
+        resizable=False,
+        shadow=False
     )
-    threading.Thread(target=run_voice, args=(voice,), daemon=True).start()
+    chat = webview.create_window("JARVIS", str(WEB / "chat.html"), width=520, height=640, hidden=True, background_color="#070B12")
+
+    jarvis = Jarvis(settings.load(), orb, chat)
+    orb.expose(jarvis.talk, jarvis.toggle_chat)
+    chat.expose(jarvis.send, jarvis.talk, jarvis.hide_chat)
+    chat.events.closing += jarvis.closing
+
+    def quit_app():
+        jarvis.quitting = True
+        icon.stop()
+        orb.destroy()
+        chat.destroy()
 
     icon = pystray.Icon(
         "jarvis",
         make_icon_image(),
         "JARVIS",
         menu=pystray.Menu(
-            pystray.MenuItem("Abrir", lambda: events.put(("show",)), default=True),
-            pystray.MenuItem("Falar agora", lambda: voice.trigger.set()),
-            pystray.MenuItem("Sair", lambda: events.put(("quit",)))
+            pystray.MenuItem("Abrir chat", lambda: jarvis.show_chat(), default=True),
+            pystray.MenuItem("Falar agora", lambda: jarvis.talk()),
+            pystray.MenuItem("Sair", quit_app)
         )
     )
     icon.run_detached()
 
-    keyboard.add_hotkey(HOTKEY, lambda: events.put(("toggle",)))
+    keyboard.add_hotkey(HOTKEY, jarvis.toggle_chat)
 
-    window.process_events(icon)
-    root.mainloop()
+    webview.start(jarvis.start)
 
 
 if __name__ == "__main__":
