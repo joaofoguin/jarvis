@@ -32,7 +32,7 @@ Use claude_code só para pedidos de programação, como criar ou alterar código
 MENSAGENS: para enviar ou mudar uma mensagem de WhatsApp, use sempre enviar_whatsapp com o texto final
 já escrito. O sistema pede a confirmação ao usuário; não peça confirmação em texto.
 
-MEMÓRIA: use lembrar só quando o usuário ensinar algo novo ou pedir para lembrar."""
+MEMÓRIA: use lembrar só para algo novo ou corrigido. Se a informação já está na sua memória, não guarde de novo."""
 
 
 def tool(name, description, properties=None, required=None):
@@ -119,14 +119,28 @@ ICLOUD_TOOLS = [
 MEMORY_TOOLS = [
     tool(
         "lembrar",
-        "Guarda na memória algo novo que o usuário ensinou, como \"eu sou o Foguinho\". "
-        "Se for um apelido de contato (\"toninho é o Toninho Hajime\"), preencha apelido e contato.",
+        "Guarda na memória algo novo ou corrigido que o usuário ensinou. Cada item tem assunto, chave e valor; "
+        "usar uma chave que já existe substitui o valor antigo, então reuse a mesma chave para corrigir.",
         {
-            "fato": {"type": "string", "description": "O que lembrar, numa frase curta."},
-            "apelido": {"type": "string", "description": "Só para contatos: como o usuário chama a pessoa."},
-            "contato": {"type": "string", "description": "Só para contatos: o nome salvo nos contatos."}
+            "assunto": {
+                "type": "string",
+                "enum": ["usuario", "contatos", "preferencias", "geral"],
+                "description": "usuario: sobre o próprio usuário. contatos: como o usuário chama alguém "
+                               "(chave) e o nome salvo nos contatos ou o número (valor)."
+            },
+            "chave": {"type": "string", "description": "Nome curto e estável do item, como \"apelido\" ou \"toninho\"."},
+            "valor": {"type": "string", "description": "O que guardar, curto e sem repetir a chave."}
         },
-        ["fato"]
+        ["assunto", "chave", "valor"]
+    ),
+    tool(
+        "esquecer",
+        "Apaga um item da memória quando o usuário pedir.",
+        {
+            "assunto": {"type": "string", "enum": ["usuario", "contatos", "preferencias", "geral"]},
+            "chave": {"type": "string", "description": "A chave do item, como aparece na memória."}
+        },
+        ["assunto", "chave"]
     )
 ]
 

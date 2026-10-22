@@ -75,17 +75,10 @@ CONTACT_PATTERN = re.compile(
     r"\b(numero|telefone|celular|contato)( de telefone| do celular)? (da|do|de) (?P<nome>[\w ]+?)\s*\??$"
 )
 
-# Memória do JARVIS: o que o usuário ensina no chat fica em arquivos (só no notebook).
+# Memória do JARVIS: a IA guarda e apaga itens (assunto, chave, valor), só no notebook.
 MEMORY_PREFIX = "memoria_lembrar:"
 FORGET_PREFIX = "memoria_esquecer:"
-ALIAS_PREFIX = "memoria_apelido:"
-MEMORY_MAX_FACT = 300
-
-LEARN_PATTERN = re.compile(
-    r"^(jarvis,? )?(lembr[ae](-se)?|aprend[ae]|guard[ae]|anot[ae]|memoriz[ae])( de| isso)?( que|:)\s*(?P<fato>.+)$",
-    re.IGNORECASE
-)
-FORGET_PATTERN = re.compile(r"^(jarvis,? )?(esque[cç]a|esquece)( que| de| sobre)?\s+(?P<fato>.+)$", re.IGNORECASE)
+MEMORY_MAX_TEXT = 300
 
 # Perguntas sobre o programa não são ordens para abri-lo.
 QUESTION_PREFIXES = ("como ", "o que ", "por que ", "porque ", "qual ", "quando ")
@@ -189,31 +182,20 @@ def detect_contact(question):
     return contact_command(match["nome"]) if match else None
 
 
-def memory_command(prefix, fact):
-    fact = " ".join(str(fact).split())
-    return (prefix + fact, "") if 0 < len(fact) <= MEMORY_MAX_FACT else None
+def memory_command(prefix, *parts):
+    """Comando de memória com as partes em JSON, ou None se alguma parte estiver vazia ou longa demais."""
 
+    parts = [" ".join(str(part).split()) for part in parts]
 
-def alias_command(alias, contact):
-    alias, contact = " ".join(str(alias).split()), " ".join(str(contact).split())
-
-    if not alias or not contact or len(alias) > 60 or len(contact) > 60:
+    if not all(0 < len(part) <= MEMORY_MAX_TEXT for part in parts):
         return None
 
-    return ALIAS_PREFIX + json.dumps([alias, contact], ensure_ascii=False), ""
+    return prefix + json.dumps(parts, ensure_ascii=False), ""
 
 
-def detect_memory(question):
-    """Reconhece "lembre que ..." e "esqueça que ..." sem IA. Retorna (comando, resposta) ou None."""
-
-    text = " ".join(question.split())
-    learn = LEARN_PATTERN.match(text)
-
-    if learn:
-        return memory_command(MEMORY_PREFIX, learn["fato"])
-
-    forget = FORGET_PATTERN.match(text)
-    return memory_command(FORGET_PREFIX, forget["fato"]) if forget else None
+def memory_args(command):
+    prefix = MEMORY_PREFIX if command.startswith(MEMORY_PREFIX) else FORGET_PREFIX
+    return json.loads(command[len(prefix):])
 
 
 def command_for_tool(name, arguments):
@@ -238,10 +220,12 @@ def command_for_tool(name, arguments):
         return contact_command(arguments.get("nome", ""))
 
     if name == "lembrar":
-        if arguments.get("apelido") and arguments.get("contato"):
-            return alias_command(arguments["apelido"], arguments["contato"])
+        return memory_command(
+            MEMORY_PREFIX, arguments.get("assunto", ""), arguments.get("chave", ""), arguments.get("valor", "")
+        )
 
-        return memory_command(MEMORY_PREFIX, arguments.get("fato", ""))
+    if name == "esquecer":
+        return memory_command(FORGET_PREFIX, arguments.get("assunto", ""), arguments.get("chave", ""))
 
     for item in COMMANDS:
         if item["tool"] == name:

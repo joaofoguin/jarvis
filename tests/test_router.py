@@ -2,7 +2,7 @@ import pytest
 
 from router import (
     FORGET_PREFIX, ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, MEMORY_PREFIX, WHATSAPP_PREFIX,
-    command_for_tool, detect_browser, detect_command, detect_contact, detect_google, detect_memory, is_allowed_command,
+    command_for_tool, detect_browser, detect_command, detect_contact, detect_google, is_allowed_command, memory_args,
     plain,
     whatsapp_args
 )
@@ -125,27 +125,15 @@ def test_contact_tool():
     assert command_for_tool("buscar_contato", {"nome": " "}) is None
 
 
-@pytest.mark.parametrize("question, prefix, fact", [
-    ("lembre que minha namorada é a Amor", MEMORY_PREFIX, "minha namorada é a Amor"),
-    ("Jarvis, aprenda que eu estudo na UENP", MEMORY_PREFIX, "eu estudo na UENP"),
-    ("anote: meu time é o Corinthians", MEMORY_PREFIX, "meu time é o Corinthians"),
-    ("esqueça que meu time é o Corinthians", FORGET_PREFIX, "meu time é o Corinthians"),
-])
-def test_detects_memory_requests(question, prefix, fact):
-    assert detect_memory(question)[0] == prefix + fact
-
-
-def test_reminder_without_que_is_not_memory():
-    assert detect_memory("lembre de pagar a conta") is None
-
-
 def test_plain_drops_emojis_and_accents():
     assert plain("Amor❤️🥵") == "amor"
     assert plain("  Mãe  (casa) ") == "mae casa"
 
 
-def test_remember_tool_with_contact_alias():
-    command, _ = command_for_tool("lembrar", {"fato": "toninho é Toninho Hajime", "apelido": "toninho", "contato": "Toninho Hajime"})
+def test_memory_tools_become_commands():
+    command, _ = command_for_tool("lembrar", {"assunto": "contatos", "chave": "toninho", "valor": "Toninho Hajime"})
 
-    assert command == 'memoria_apelido:["toninho", "Toninho Hajime"]'
-    assert command_for_tool("lembrar", {"fato": "eu sou o Foguinho"})[0] == "memoria_lembrar:eu sou o Foguinho"
+    assert command.startswith(MEMORY_PREFIX)
+    assert memory_args(command) == ["contatos", "toninho", "Toninho Hajime"]
+    assert memory_args(command_for_tool("esquecer", {"assunto": "contatos", "chave": "toninho"})[0]) == ["contatos", "toninho"]
+    assert command_for_tool("lembrar", {"assunto": "usuario", "chave": "apelido", "valor": ""}) is None

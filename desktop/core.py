@@ -1,5 +1,3 @@
-import json
-
 import browser
 import google_data
 import icloud_data
@@ -10,9 +8,9 @@ import whatsapp_app
 from agent.agent import call_claude_code, run_action
 from llm import BROWSER_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, MEMORY_TOOLS, TOOLS, LLMError, ask_llm
 from router import (
-    ALIAS_PREFIX, CLAUDE_CODE_PREFIX, FORGET_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
+    CLAUDE_CODE_PREFIX, FORGET_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
     ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, MEMORY_PREFIX, WHATSAPP_PREFIX,
-    detect_browser, detect_command, detect_contact, detect_google, detect_memory, normalize, plain, whatsapp_args
+    detect_browser, detect_command, detect_contact, detect_google, memory_args, normalize, plain, whatsapp_args
 )
 
 
@@ -46,7 +44,7 @@ def reply_to(text, history):
         if normalize(text).strip(" .!") in {"nao", "n", "cancela", "cancelar"}:
             return "Certo, senhor. Não enviei.", None
 
-    match = detect_memory(text) or detect_browser(text) or detect_command(text) or detect_contact(text) or detect_google(text)
+    match = detect_browser(text) or detect_command(text) or detect_contact(text) or detect_google(text)
 
     if match:
         return run_command(*match, text)
@@ -61,7 +59,7 @@ def reply_to(text, history):
     if not command:
         return answer, None
 
-    if command.startswith((MEMORY_PREFIX, ALIAS_PREFIX)):
+    if command.startswith((MEMORY_PREFIX, FORGET_PREFIX)):
         return continue_after_memory(run_command(command, answer, text)[0], text, history)
 
     return run_command(command, answer, text)
@@ -111,13 +109,10 @@ def run_command(command, answer, text):
         return answer, lambda: run_task(task)
 
     if command.startswith(MEMORY_PREFIX):
-        return memory.remember(command[len(MEMORY_PREFIX):]), None
-
-    if command.startswith(ALIAS_PREFIX):
-        return memory.remember_alias(*json.loads(command[len(ALIAS_PREFIX):])), None
+        return memory.remember(*memory_args(command)), None
 
     if command.startswith(FORGET_PREFIX):
-        return memory.forget(command[len(FORGET_PREFIX):]), None
+        return memory.forget(*memory_args(command)), None
 
     if command.startswith(GOOGLE_AGENDA_PREFIX):
         days = int(command[len(GOOGLE_AGENDA_PREFIX):])
@@ -135,6 +130,7 @@ def run_command(command, answer, text):
 
         try:
             name, phone = whatsapp_app.recipient(memory.contact_name(contact))
+            name = name or contact
 
         except Exception as error:
             return f"Desculpe, senhor. Não consegui achar o número: {error}", None

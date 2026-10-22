@@ -390,13 +390,15 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - O Enter só é apertado se a janela da frente for o WhatsApp, para nunca ir para outro programa. Se o app não ficar na frente em 15 segundos, a conversa fica aberta com o texto pronto, sem envio.
 - Números sem "+" e com DDD (10 ou 11 dígitos) ganham o código 55 do Brasil.
 
-### Atualização de 22/10/2026: conversa mais fluida com memória e WhatsApp
+### Atualização de 22/10/2026: memória com assunto, chave e valor
 
-- Quando a IA guarda algo na memória, o JARVIS faz uma segunda chamada, sem a ferramenta `lembrar`, para atender o resto do pedido na mesma frase ("toninho é o Toninho Hajime, manda saudações pra ele"). Se o pedido era só para lembrar, a IA responde "OK" e o chat mostra só a confirmação.
-- A ferramenta `lembrar` aceita `apelido` e `contato`, que viram apelidos de contato. "X está salvo como Y" também vira apelido.
-- Um apelido só troca o nome quando o pedido é exatamente o apelido: "toninho" vira "Toninho Hajime", mas "Toninho Supermercado" continua como está.
-- Fatos sobre o próprio usuário ("eu sou", "me chame de") vão sempre para a IA, para ela escrever mensagens em nome dele.
-- O prompt pede que a IA sempre use `enviar_whatsapp` para enviar ou mudar uma mensagem, em vez de pedir confirmação em texto.
+- A memória deixou de usar regras de frases específicas ("meu X é Y", "eu sou", "lembre que"). Agora a IA decide o que guardar e chama `lembrar(assunto, chave, valor)` ou `esquecer(assunto, chave)`.
+- Os assuntos são fixos: `usuario`, `contatos`, `preferencias` e `geral`. Cada um tem um arquivo (`usuario.md` etc.) com linhas `- chave: valor`. Os antigos `apelidos.md` e `fatos.md` não são mais lidos.
+- Guardar a mesma chave de novo substitui o valor. Pedir para reformular ou repetir uma informação não cria cópias.
+- `contatos` liga o jeito como o usuário chama alguém (chave) a um nome dos contatos ou a um número (valor). O WhatsApp e a busca de contatos usam isso.
+- Todo o assunto `usuario` vai sempre para a IA. Dos outros assuntos, só vão os itens com palavras em comum com a pergunta, no máximo 5.
+- Quando a IA guarda ou apaga algo, o JARVIS faz uma segunda chamada, sem as ferramentas de memória, para atender o resto da frase. Se não houver mais nada, a IA responde "OK", e o chat mostra só a confirmação.
+- O prompt pede que a IA use sempre `enviar_whatsapp` para enviar ou mudar uma mensagem, em vez de pedir confirmação em texto.
 
 ## 13. Histórico de resultados e problemas
 
