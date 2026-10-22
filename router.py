@@ -78,6 +78,7 @@ CONTACT_PATTERN = re.compile(
 # Memória do JARVIS: o que o usuário ensina no chat fica em arquivos (só no notebook).
 MEMORY_PREFIX = "memoria_lembrar:"
 FORGET_PREFIX = "memoria_esquecer:"
+ALIAS_PREFIX = "memoria_apelido:"
 MEMORY_MAX_FACT = 300
 
 LEARN_PATTERN = re.compile(
@@ -193,6 +194,15 @@ def memory_command(prefix, fact):
     return (prefix + fact, "") if 0 < len(fact) <= MEMORY_MAX_FACT else None
 
 
+def alias_command(alias, contact):
+    alias, contact = " ".join(str(alias).split()), " ".join(str(contact).split())
+
+    if not alias or not contact or len(alias) > 60 or len(contact) > 60:
+        return None
+
+    return ALIAS_PREFIX + json.dumps([alias, contact], ensure_ascii=False), ""
+
+
 def detect_memory(question):
     """Reconhece "lembre que ..." e "esqueça que ..." sem IA. Retorna (comando, resposta) ou None."""
 
@@ -228,6 +238,9 @@ def command_for_tool(name, arguments):
         return contact_command(arguments.get("nome", ""))
 
     if name == "lembrar":
+        if arguments.get("apelido") and arguments.get("contato"):
+            return alias_command(arguments["apelido"], arguments["contato"])
+
         return memory_command(MEMORY_PREFIX, arguments.get("fato", ""))
 
     for item in COMMANDS:

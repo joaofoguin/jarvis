@@ -142,3 +142,10 @@ def test_reminder_without_que_is_not_memory():
 def test_plain_drops_emojis_and_accents():
     assert plain("Amor❤️🥵") == "amor"
     assert plain("  Mãe  (casa) ") == "mae casa"
+
+
+def test_remember_tool_with_contact_alias():
+    command, _ = command_for_tool("lembrar", {"fato": "toninho é Toninho Hajime", "apelido": "toninho", "contato": "Toninho Hajime"})
+
+    assert command == 'memoria_apelido:["toninho", "Toninho Hajime"]'
+    assert command_for_tool("lembrar", {"fato": "eu sou o Foguinho"})[0] == "memoria_lembrar:eu sou o Foguinho"

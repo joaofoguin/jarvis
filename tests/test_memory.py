@@ -49,3 +49,24 @@ def test_forget_removes_matching_items():
     assert memory.read("apelidos") == []
     assert memory.read("fatos") == ["eu torço para o Corinthians"]
     assert memory.forget("a cor do meu carro") == "Não encontrei isso na minha memória, senhor."
+
+
+def test_alias_saved_as_contact_name():
+    assert memory.remember("toninho está salvo como Toninho Hajime") == "Certo, senhor. Vou lembrar que toninho é Toninho Hajime."
+    assert memory.contact_name("toninho") == "Toninho Hajime"
+    assert memory.contact_name("pro Toninho") == "Toninho Hajime"
+
+
+def test_alias_only_replaces_the_alias_itself():
+    memory.remember_alias("toninho", "Toninho Hajime")
+
+    assert memory.contact_name("Toninho Supermercado") == "Toninho Supermercado"
+
+
+def test_profile_facts_always_go_to_the_ai():
+    memory.remember("eu sou João Pedro, mas me chame de Foguinho")
+    memory.remember("eu torço para o Corinthians")
+
+    assert memory.context("mande saudações para o toninho") == [
+        {"role": "system", "content": "O usuário já te ensinou:\n- eu sou João Pedro, mas me chame de Foguinho"}
+    ]

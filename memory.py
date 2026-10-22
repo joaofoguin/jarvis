@@ -13,11 +13,23 @@ from router import plain
 
 SUBJECTS = {"apelidos": "Apelidos", "fatos": "Fatos"}
 
-# "minha namorada é a Amor" vira o apelido namorada → Amor.
-ALIAS_PATTERN = re.compile(
-    r"^(o |a )?(meu|minha) (?P<apelido>[\w ]+?) (é|e|se chama|chama-se) (o |a )?(?P<nome>.+?)[.!]?$",
-    re.IGNORECASE
-)
+# "minha namorada é a Amor" e "toninho está salvo como Toninho Hajime" viram apelidos.
+ALIAS_PATTERNS = [
+    re.compile(
+        r"^(o |a )?(meu|minha) (?P<apelido>[\w ]+?) (é|e|se chama|chama-se) (o |a )?(?P<nome>.+?)[.!]?$",
+        re.IGNORECASE
+    ),
+    re.compile(
+        r"^(o |a )?(?P<apelido>[\w ]+?) (está|esta|tá|ta|fica) salv[oa] como (o |a )?(?P<nome>.+?)[.!]?$",
+        re.IGNORECASE
+    )
+]
+
+# Palavras que ficam em volta de um apelido ("pro toninho", "minha namorada").
+ALIAS_FILLERS = {"meu", "minha", "o", "a", "pro", "pra", "para", "ao", "do", "da", "de"}
+
+# Fatos sobre o próprio usuário vão sempre para a IA, como o nome e o apelido dele.
+PROFILE_PATTERN = re.compile(r"\b(eu sou|meu nome|me chamo|me chame|meu apelido)\b")
 
 # Palavras comuns demais para dizer se um fato tem a ver com a pergunta.
 STOPWORDS = {
@@ -53,14 +65,11 @@ def words(text):
 
 
 def remember(fact):
-    alias = ALIAS_PATTERN.match(fact)
+    for pattern in ALIAS_PATTERNS:
+        alias = pattern.match(fact)
 
-    if alias:
-        name = alias["nome"].strip()
-        key = plain(alias["apelido"])
-        items = [item for item in read("apelidos") if plain(item.partition(":")[0]) != key]
-        write("apelidos", items + [f"{key}: {name}"])
-        return f"Certo, senhor. Vou lembrar que {alias['apelido']} é {name}."
+        if alias:
+            return remember_alias(alias["apelido"], alias["nome"])
 
     fact = fact.strip().rstrip(".")
     items = read("fatos")
@@ -69,6 +78,14 @@ def remember(fact):
         write("fatos", items + [fact])
 
     return "Certo, senhor. Vou lembrar disso."
+
+
+def remember_alias(alias, contact):
+    key = plain(alias)
+    items = [item for item in read("apelidos") if plain(item.partition(":")[0]) != key]
+    write("apelidos", items + [f"{key}: {contact.strip()}"])
+
+    return f"Certo, senhor. Vou lembrar que {alias.strip()} é {contact.strip()}."
 
 
 def forget(text):
@@ -96,7 +113,8 @@ def context(question):
 
     wanted = words(question)
     items = [item for subject in SUBJECTS for item in read(subject)]
-    related = [item for item in items if wanted & words(item)][:MAX_FACTS]
+    profile = [item for item in items if PROFILE_PATTERN.search(plain(item))]
+    related = (profile + [item for item in items if item not in profile and wanted & words(item)])[:MAX_FACTS]
 
     if not related:
         return []
@@ -105,15 +123,18 @@ def context(question):
 
 
 def contact_name(name):
-    """Troca um apelido ("minha namorada") pelo nome do contato ("Amor")."""
+    """Troca um apelido ("minha namorada") pelo nome do contato ("Amor").
 
-    text = plain(name)
+    O pedido precisa ser só o apelido: "toninho" vira "Toninho Hajime", mas "Toninho Supermercado" não.
+    """
+
+    text = " ".join(word for word in plain(name).split() if word not in ALIAS_FILLERS)
 
     # Os apelidos antigos do .env (WHATSAPP_APELIDOS=namorada:Amor) continuam valendo.
     for item in read("apelidos") + os.getenv("WHATSAPP_APELIDOS", "").split(","):
         alias, _, contact = item.partition(":")
 
-        if alias.strip() and contact.strip() and re.search(rf"\b{re.escape(plain(alias))}\b", text):
+        if alias.strip() and contact.strip() and plain(alias) == text:
             return contact.strip()
 
     return name.strip()

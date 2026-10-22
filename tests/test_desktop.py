@@ -233,3 +233,38 @@ def test_related_memory_goes_to_the_ai(actions, monkeypatch):
     core.reply_to("a UENP tem aula amanhã?", [])
 
     assert received["history"][0]["content"] == "O usuário já te ensinou:\n- eu estudo na UENP"
+
+
+def llm_replies(monkeypatch, *replies):
+    calls = []
+
+    def ask(text, source, history, tools):
+        calls.append({"history": history, "tools": [tool["function"]["name"] for tool in tools]})
+        return replies[len(calls) - 1]
+
+    monkeypatch.setattr(core, "ask_llm", ask)
+    return calls
+
+
+def test_conversation_continues_after_ai_saves_memory(actions, sent, monkeypatch):
+    calls = llm_replies(
+        monkeypatch,
+        ("", 'memoria_apelido:["toninho", "Amor"]'),
+        ("", 'whatsapp_enviar:["toninho", "Saudações do JARVIS, em nome do Foguinho."]')
+    )
+
+    answer, task = core.reply_to("toninho é a Amor, manda saudações suas pra ele", [])
+
+    assert answer == (
+        "Certo, senhor. Vou lembrar que toninho é Amor. "
+        'Enviar "Saudações do JARVIS, em nome do Foguinho." para Amor❤️🥵 (+5514996872005) no WhatsApp? '
+        'Responda "sim" para confirmar.'
+    )
+    assert "lembrar" not in calls[1]["tools"]
+    assert "Você acabou de guardar na memória" in calls[1]["history"][-1]["content"]
+
+
+def test_only_memory_request_gets_short_answer(actions, monkeypatch):
+    llm_replies(monkeypatch, ("", "memoria_lembrar:eu sou o Foguinho"), ("OK.", None))
+
+    assert core.reply_to("aprenda, eu sou o Foguinho", []) == ("Certo, senhor. Vou lembrar disso.", None)

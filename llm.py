@@ -27,7 +27,12 @@ VOZ: sua resposta será falada pela Alexa. Não use Markdown, emojis nem listas 
 Seja natural e conciso.
 
 AÇÕES: quando o usuário pedir algo no computador dele, use a ferramenta correspondente.
-Use claude_code só para pedidos de programação, como criar ou alterar código."""
+Use claude_code só para pedidos de programação, como criar ou alterar código.
+
+MENSAGENS: para enviar ou mudar uma mensagem de WhatsApp, use sempre enviar_whatsapp com o texto final
+já escrito. O sistema pede a confirmação ao usuário; não peça confirmação em texto.
+
+MEMÓRIA: use lembrar só quando o usuário ensinar algo novo ou pedir para lembrar."""
 
 
 def tool(name, description, properties=None, required=None):
@@ -84,7 +89,11 @@ BROWSER_TOOLS = [
         "Envia uma mensagem no WhatsApp Web para um contato. O usuário confirma antes do envio.",
         {
             "contato": {"type": "string", "description": "O contato como o usuário disse, por exemplo \"Amor\" ou \"minha namorada\"."},
-            "mensagem": {"type": "string", "description": "O texto exato a enviar."}
+            "mensagem": {
+                "type": "string",
+                "description": "O texto final, pronto para chegar ao contato. Se o usuário pedir para você "
+                               "escrever (\"mande saudações suas\"), escreva como JARVIS, em nome do usuário."
+            }
         },
         ["contato", "mensagem"]
     ),
@@ -110,8 +119,13 @@ ICLOUD_TOOLS = [
 MEMORY_TOOLS = [
     tool(
         "lembrar",
-        "Guarda na memória algo que o usuário pediu para lembrar, como \"minha namorada é a Amor\".",
-        {"fato": {"type": "string", "description": "O que lembrar, numa frase curta, do jeito que o usuário disse."}},
+        "Guarda na memória algo novo que o usuário ensinou, como \"eu sou o Foguinho\". "
+        "Se for um apelido de contato (\"toninho é o Toninho Hajime\"), preencha apelido e contato.",
+        {
+            "fato": {"type": "string", "description": "O que lembrar, numa frase curta."},
+            "apelido": {"type": "string", "description": "Só para contatos: como o usuário chama a pessoa."},
+            "contato": {"type": "string", "description": "Só para contatos: o nome salvo nos contatos."}
+        },
         ["fato"]
     )
 ]

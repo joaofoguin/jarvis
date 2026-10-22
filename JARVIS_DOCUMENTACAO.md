@@ -390,6 +390,14 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - O Enter só é apertado se a janela da frente for o WhatsApp, para nunca ir para outro programa. Se o app não ficar na frente em 15 segundos, a conversa fica aberta com o texto pronto, sem envio.
 - Números sem "+" e com DDD (10 ou 11 dígitos) ganham o código 55 do Brasil.
 
+### Atualização de 22/10/2026: conversa mais fluida com memória e WhatsApp
+
+- Quando a IA guarda algo na memória, o JARVIS faz uma segunda chamada, sem a ferramenta `lembrar`, para atender o resto do pedido na mesma frase ("toninho é o Toninho Hajime, manda saudações pra ele"). Se o pedido era só para lembrar, a IA responde "OK" e o chat mostra só a confirmação.
+- A ferramenta `lembrar` aceita `apelido` e `contato`, que viram apelidos de contato. "X está salvo como Y" também vira apelido.
+- Um apelido só troca o nome quando o pedido é exatamente o apelido: "toninho" vira "Toninho Hajime", mas "Toninho Supermercado" continua como está.
+- Fatos sobre o próprio usuário ("eu sou", "me chame de") vão sempre para a IA, para ela escrever mensagens em nome dele.
+- O prompt pede que a IA sempre use `enviar_whatsapp` para enviar ou mudar uma mensagem, em vez de pedir confirmação em texto.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados
