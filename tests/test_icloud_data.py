@@ -15,16 +15,21 @@ def test_parse_card_reads_name_and_phones():
     assert icloud_data.parse_card(AMORIM) == ("Pedro Amorim", ["+5543988887777", "3333-4444"])
 
 
-def test_exact_name_comes_first():
+def test_exact_name_hides_partial_matches():
     found = icloud_data.find_contacts("amor", [AMORIM, SEM_TELEFONE, AMOR])
 
-    assert [name for name, _ in found] == ["Amor", "Pedro Amorim", "Ana Amor"]
+    assert [name for name, _ in found] == ["Amor"]
+
+
+def test_partial_matches_when_no_exact_name():
+    found = icloud_data.find_contacts("amor", [AMORIM, SEM_TELEFONE])
+
+    assert [name for name, _ in found] == ["Pedro Amorim", "Ana Amor"]
 
 
 def test_contact_summary():
-    assert icloud_data.contact_summary("Amor", [AMOR, SEM_TELEFONE]) == (
-        "Contatos encontrados:\n- Amor: +55 43 99999-0000\n- Ana Amor: sem telefone"
-    )
+    assert icloud_data.contact_summary("Amor", [AMOR, SEM_TELEFONE]) == "Contatos encontrados:\n- Amor: +55 43 99999-0000"
+    assert icloud_data.contact_summary("Ana", [AMOR, SEM_TELEFONE]) == "Contatos encontrados:\n- Ana Amor: sem telefone"
     assert icloud_data.contact_summary("Zé", [AMOR]) == "Não encontrei Zé nos seus contatos do iCloud, senhor."
 
 
