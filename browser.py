@@ -5,13 +5,12 @@ senha no Instagram) e fica salvo no perfil, fora do Git.
 """
 
 import os
-import re
 import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from router import normalize
+from router import plain
 
 
 DEFAULT_PROFILE = str(Path.home() / ".jarvis" / "navegador")
@@ -53,20 +52,6 @@ def browser_page(url):
             context.close()
 
 
-def contact_name(name):
-    """Troca um apelido de WHATSAPP_APELIDOS (ex.: "namorada:Amor") pelo nome salvo no WhatsApp."""
-
-    text = normalize(name)
-
-    for pair in os.getenv("WHATSAPP_APELIDOS", "").split(","):
-        alias, _, contact = pair.partition(":")
-
-        if alias.strip() and contact.strip() and re.search(rf"\b{re.escape(normalize(alias))}\b", text):
-            return contact.strip()
-
-    return name.strip()
-
-
 def whatsapp_send(contact, message):
     with browser_page("https://web.whatsapp.com") as page:
         # Na primeira vez aparece o QR code; a lista de conversas só surge depois do login.
@@ -77,7 +62,7 @@ def whatsapp_send(contact, message):
         page.wait_for_timeout(2000)
 
         chats = chat_names(page)
-        wanted = [(index, name) for index, name in chats if normalize(name) == normalize(contact)]
+        wanted = [(index, name) for index, name in chats if plain(name) == plain(contact)]
 
         if not wanted:
             found = ", ".join(dict.fromkeys(name for _, name in chats))

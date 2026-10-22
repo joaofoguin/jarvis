@@ -1,14 +1,15 @@
 import browser
 import google_data
 import icloud_data
+import memory
 import reports
 
 from agent.agent import call_claude_code, run_action
-from llm import BROWSER_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, TOOLS, LLMError, ask_llm
+from llm import BROWSER_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, MEMORY_TOOLS, TOOLS, LLMError, ask_llm
 from router import (
-    CLAUDE_CODE_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
-    ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, WHATSAPP_PREFIX,
-    detect_browser, detect_command, detect_contact, detect_google, normalize, whatsapp_args
+    CLAUDE_CODE_PREFIX, FORGET_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
+    ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, MEMORY_PREFIX, WHATSAPP_PREFIX,
+    detect_browser, detect_command, detect_contact, detect_google, detect_memory, normalize, whatsapp_args
 )
 
 
@@ -42,11 +43,15 @@ def reply_to(text, history):
         if normalize(text).strip(" .!") in {"nao", "n", "cancela", "cancelar"}:
             return "Certo, senhor. Não enviei.", None
 
-    match = detect_browser(text) or detect_command(text) or detect_contact(text) or detect_google(text)
+    match = detect_memory(text) or detect_browser(text) or detect_command(text) or detect_contact(text) or detect_google(text)
 
     if not match:
         try:
-            answer, command = ask_llm(text, "desktop", history[-HISTORY_LIMIT:], TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS)
+            # Só os fatos da memória ligados à pergunta vão junto, para gastar poucos tokens.
+            answer, command = ask_llm(
+                text, "desktop", memory.context(text) + history[-HISTORY_LIMIT:],
+                TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS + MEMORY_TOOLS
+            )
 
         except LLMError as error:
             print("ERRO NA IA:", repr(error))
@@ -63,12 +68,18 @@ def reply_to(text, history):
         task = command[len(CLAUDE_CODE_PREFIX):]
         return answer, lambda: run_task(task)
 
+    if command.startswith(MEMORY_PREFIX):
+        return memory.remember(command[len(MEMORY_PREFIX):]), None
+
+    if command.startswith(FORGET_PREFIX):
+        return memory.forget(command[len(FORGET_PREFIX):]), None
+
     if command.startswith(GOOGLE_AGENDA_PREFIX):
         days = int(command[len(GOOGLE_AGENDA_PREFIX):])
         return answer, lambda: agenda(days, text)
 
     if command.startswith(ICLOUD_CONTACT_PREFIX):
-        name = browser.contact_name(command[len(ICLOUD_CONTACT_PREFIX):])
+        name = memory.contact_name(command[len(ICLOUD_CONTACT_PREFIX):])
         return answer, lambda: run_icloud(icloud_data.contact_summary, name)
 
     if command == GOOGLE_CLASSROOM:
@@ -76,7 +87,7 @@ def reply_to(text, history):
 
     if command.startswith(WHATSAPP_PREFIX):
         contact, message = whatsapp_args(command)
-        pending_message = browser.contact_name(contact), message
+        pending_message = memory.contact_name(contact), message
         return f"Enviar \"{message}\" para {pending_message[0]} no WhatsApp? Responda \"sim\" para confirmar.", None
 
     if command == INSTAGRAM_MESSAGES:

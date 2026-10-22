@@ -21,10 +21,21 @@ def test_exact_name_hides_partial_matches():
     assert [name for name, _ in found] == ["Amor"]
 
 
-def test_partial_matches_when_no_exact_name():
-    found = icloud_data.find_contacts("amor", [AMORIM, SEM_TELEFONE])
+def test_emojis_do_not_hide_the_exact_name():
+    namorada_jow = "BEGIN:VCARD\r\nFN:Julya Namorada Jow\r\nTEL:(14) 99635-4039\r\nEND:VCARD"
+    amor = "BEGIN:VCARD\r\nFN:Amor❤️🥵\r\nTEL:+5514996872005\r\nEND:VCARD"
 
-    assert [name for name, _ in found] == ["Pedro Amorim", "Ana Amor"]
+    assert icloud_data.contact_summary("Amor", [namorada_jow, amor]) == "Contatos encontrados:\n- Amor❤️🥵: +5514996872005"
+
+
+def test_partial_match_needs_whole_words():
+    assert icloud_data.find_contacts("amor", [AMORIM]) == []
+
+
+def test_partial_matches_when_no_exact_name():
+    found = icloud_data.find_contacts("pedro", [AMORIM, SEM_TELEFONE])
+
+    assert [name for name, _ in found] == ["Pedro Amorim"]
 
 
 def test_contact_summary():

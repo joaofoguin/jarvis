@@ -11,7 +11,7 @@ from xml.etree import ElementTree
 
 import requests
 
-from router import normalize
+from router import plain
 
 
 CALDAV_URL = "https://caldav.icloud.com"
@@ -116,14 +116,19 @@ def parse_card(text):
 
 
 def find_contacts(name, cards=None):
-    """Contatos com o nome exato pedido; se não houver, os que contêm o texto."""
+    """Contatos com o nome exato pedido; se não houver, os que têm essas palavras no nome.
 
-    wanted = normalize(name)
+    Emojis não contam ("Amor❤️" é "Amor") e só valem palavras inteiras ("Amor" não acha "Namorada").
+    """
+
+    wanted = plain(name)
     contacts = [parse_card(card) for card in (address_cards() if cards is None else cards)]
-    exact = [contact for contact in contacts if normalize(contact[0]) == wanted]
+    exact = [contact for contact in contacts if plain(contact[0]) == wanted]
 
-    # "Amor" não deve trazer junto "Pedro Amorim" nem "Julya Namorada Jow".
-    return exact or [contact for contact in contacts if wanted and wanted in normalize(contact[0])]
+    return exact or [
+        contact for contact in contacts
+        if wanted and re.search(rf"\b{re.escape(wanted)}\b", plain(contact[0]))
+    ]
 
 
 def contact_summary(name, cards=None):

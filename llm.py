@@ -106,6 +106,17 @@ ICLOUD_TOOLS = [
 ]
 
 
+# Também só no notebook: a memória fica em arquivos no computador do usuário.
+MEMORY_TOOLS = [
+    tool(
+        "lembrar",
+        "Guarda na memória algo que o usuário pediu para lembrar, como \"minha namorada é a Amor\".",
+        {"fato": {"type": "string", "description": "O que lembrar, numa frase curta, do jeito que o usuário disse."}},
+        ["fato"]
+    )
+]
+
+
 class LLMError(Exception):
     pass
 
