@@ -91,3 +91,14 @@ def test_closing_the_chat_only_hides_it_until_quitting(jarvis):
 
     jarvis.quitting = True
     assert jarvis.closing() is True
+
+
+def test_saved_preferences_apply_without_restarting(jarvis):
+    from desktop import settings
+
+    jarvis.apply_preferences({**settings.DEFAULTS, "accent": "#A98BFF", "voice": "pt-BR-FranciscaNeural", "wake_word": False})
+
+    assert jarvis.voice.voice == "pt-BR-FranciscaNeural"
+    assert not jarvis.voice.wake_word
+    assert jarvis.orb.calls == ['setAccent("#A98BFF")']
+    assert jarvis.chat.calls == ['setAccent("#A98BFF")']

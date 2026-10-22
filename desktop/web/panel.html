@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Preferências do JARVIS</title>
+<style>
+  :root { --accent: #3FD4F5; --ground: #070B12; --panel: #0D1520; --raised: #111C29; --line: #1B2A3A; --text: #E6F1FA; --muted: #8FA6BA; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--ground); color: var(--text); font: 15px/1.5 "Segoe UI", Inter, system-ui, sans-serif; }
+  button, input, select { font: inherit; }
+  button { cursor: pointer; }
+
+  .page { max-width: 1100px; margin: 0 auto; padding: 28px 20px 40px; display: flex; flex-direction: column; gap: 20px; }
+  .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .dot {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 45%, #fff 0%, var(--accent) 40%, var(--panel) 100%);
+    box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  .eyebrow { font-size: 12px; letter-spacing: 4px; color: var(--muted); }
+  h1 { margin: 0; font-size: 26px; font-weight: 600; }
+  h2 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 1px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .tile { background: var(--raised); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+  .tile b { font-size: 26px; font-weight: 600; }
+  .muted { color: var(--muted); font-size: 13px; }
+
+  .chart { display: flex; gap: 10px; }
+  .axis { display: flex; flex-direction: column; justify-content: space-between; height: 160px; font-size: 12px; color: var(--muted); text-align: right; min-width: 44px; }
+  .plot { flex: 1; min-width: 0; }
+  .bars { position: relative; height: 160px; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid #2A3B4E; }
+  .bars::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--line); }
+  .slot { flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; position: relative; }
+  .slot span { width: 60%; max-width: 26px; background: var(--accent); border-radius: 4px 4px 0 0; }
+  .slot:hover::after {
+    content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    white-space: nowrap; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; font-size: 12px; z-index: 1;
+  }
+  .labels { display: flex; gap: 2px; font-size: 11px; color: var(--muted); }
+  .labels div { flex: 1; text-align: center; }
+
+  .option {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 14px;
+    border-radius: 12px; border: 2px solid transparent; background: var(--raised); color: var(--text); text-align: left; width: 100%;
+  }
+  .option[aria-pressed="true"] { border-color: var(--accent); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+  .swatch { width: auto; padding: 6px 14px 6px 6px; border-radius: 999px; justify-content: flex-start; }
+  .swatch i { width: 28px; height: 28px; border-radius: 50%; display: block; }
+
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid #16222F; }
+  .switch { flex-shrink: 0; width: 52px; height: 30px; border-radius: 999px; border: none; padding: 3px; background: #2A3B4E; display: flex; }
+  .switch::before { content: ""; width: 24px; height: 24px; border-radius: 50%; background: var(--text); }
+  .switch[aria-pressed="true"] { background: var(--accent); justify-content: flex-end; }
+
+  input[type="range"] { accent-color: var(--accent); width: 100%; }
+  input[type="url"] { flex: 1 1 220px; min-height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--text); padding: 0 12px; }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .primary { min-height: 44px; padding: 0 18px; border-radius: 10px; border: none; background: var(--accent); color: #04111A; font-weight: 600; }
+  .ghost { min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); }
+  .remove { width: 44px; height: 44px; border: none; border-radius: 8px; background: transparent; color: var(--muted); flex-shrink: 0; }
+  .item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 6px 6px 14px; border-radius: 10px; background: var(--raised); overflow-wrap: anywhere; }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  details summary { cursor: pointer; padding: 6px 0; }
+  #status { min-height: 22px; font-size: 14px; color: var(--muted); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="top">
+    <div class="brand">
+      <div class="dot" aria-hidden="true"></div>
+      <div>
+        <div class="eyebrow">J.A.R.V.I.S.</div>
+        <h1>Preferências</h1>
+      </div>
+    </div>
+    <button type="button" class="primary" id="save">Salvar</button>
+  </div>
+  <div id="status" role="status"></div>
+
+  <section class="card">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px">
+      <h2>Uso de IA</h2>
+      <span class="muted">Últimos 14 dias · custo estimado pelo preço de pico do DeepSeek</span>
+    </div>
+    <div class="tiles">
+      <div class="tile"><span class="muted">Tokens</span><b id="total">…</b></div>
+      <div class="tile"><span class="muted">Custo estimado</span><b id="cost">…</b></div>
+      <div class="tile"><span class="muted">Perguntas à IA</span><b id="calls">…</b></div>
+      <div class="tile"><span class="muted">Média por pergunta</span><b id="average">…</b></div>
+    </div>
+    <div>
+      <div style="font-size: 14px; margin-bottom: 8px">Tokens por dia</div>
+      <div class="chart">
+        <div class="axis"><div id="axis-max"></div><div id="axis-mid"></div><div>0</div></div>
+        <div class="plot">
+          <div class="bars" id="bars"></div>
+          <div class="labels" id="labels"></div>
+        </div>
+      </div>
+    </div>
+    <div class="muted" id="sources"></div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Aparência</h2>
+      <span class="muted">Cor do orbe e das janelas</span>
+      <div class="swatches" id="swatches"></div>
+    </section>
+
+    <section class="card">
+      <h2>Voz</h2>
+      <div class="list" id="voices"></div>
+      <label for="rate" class="muted">Velocidade da fala: <span id="rate-label"></span></label>
+      <input id="rate" type="range" min="-50" max="50" step="5">
+      <button type="button" class="ghost" id="preview" style="align-self: flex-start">Testar: “Às suas ordens, senhor.”</button>
+    </section>
+
+    <section class="card">
+      <h2>Reconhecimento</h2>
+      <div class="row">
+        <div><div>Ouvir “Hey Jarvis” sozinho</div><div class="muted">Fica atento ao microfone esperando a palavra de ativação</div></div>
+        <button type="button" class="switch" id="wake_word" aria-label="Ouvir Hey Jarvis sozinho"></button>
+      </div>
+      <div class="row">
+        <div><div>Responder falando</div><div class="muted">Lê em voz alta as respostas às perguntas feitas por voz</div></div>
+        <button type="button" class="switch" id="speak_replies" aria-label="Responder falando"></button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Repositórios de Skills</h2>
+      <span class="muted">Para as tarefas do Claude Code. As pastas com SKILL.md vão para a pasta de trabalho do JARVIS.</span>
+      <div class="list" id="skills"></div>
+      <form id="skill-form" style="display: flex; flex-wrap: wrap; gap: 8px">
+        <label for="repo" class="sr">Endereço do repositório</label>
+        <input id="repo" type="url" placeholder="https://github.com/dono/repositorio" required>
+        <button type="submit" class="primary">Adicionar</button>
+      </form>
+    </section>
+
+    <section class="card" style="grid-column: 1 / -1">
+      <h2>Memória</h2>
+      <span class="muted">O que você ensinou no chat. Também dá para pedir “esqueça…”.</span>
+      <div id="memory"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+  const SWATCHES = [["#3FD4F5", "Reator"], ["#F5B83F", "Ouro"], ["#E2533F", "Mark III"], ["#A98BFF", "Violeta"]];
+  let preferences = {};
+
+  const $ = (id) => document.getElementById(id);
+  const number = (value) => Math.round(value).toLocaleString("pt-BR");
+  const api = () => window.pywebview.api;
+
+  function element(tag, props = {}, children = []) {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  }
+
+  function status(text) { $("status").textContent = text; }
+
+  function setAccent(color) { document.documentElement.style.setProperty("--accent", color); }
+
+  function rateNumber() { return parseInt(preferences.rate, 10); }
+
+  function renderPreferences() {
+    setAccent(preferences.accent);
+
+    $("swatches").replaceChildren(...SWATCHES.map(([hex, name]) => {
+      const button = element("button", { type: "button", className: "option swatch" }, [element("i"), name]);
+      button.querySelector("i").style.background = hex;
+      button.setAttribute("aria-pressed", String(preferences.accent.toUpperCase() === hex));
+      button.onclick = () => { preferences.accent = hex; renderPreferences(); };
+      return button;
+    }));
+
+    $("voices").replaceChildren(...Object.entries(window.voices).map(([id, label]) => {
+      const button = element("button", { type: "button", className: "option" }, [
+        element("span", { textContent: label }),
+        element("span", { className: "muted", textContent: id === preferences.voice ? "Em uso" : "Escolher" })
+      ]);
+      button.setAttribute("aria-pressed", String(id === preferences.voice));
+      button.onclick = () => { preferences.voice = id; renderPreferences(); };
+      return button;
+    }));
+
+    $("rate").value = rateNumber();
+    $("rate-label").textContent = preferences.rate;
+
+    for (const key of ["wake_word", "speak_replies"]) {
+      $(key).setAttribute("aria-pressed", String(preferences[key]));
+    }
+  }
+
+  function renderUsage(usage) {
+    if (usage.error) {
+      $("sources").textContent = `Não consegui ler o uso: ${usage.error}`;
+      return;
+    }
+
+    const max = Math.max(1000, ...usage.days.map((day) => day.tokens));
+    $("total").textContent = number(usage.total);
+    $("cost").textContent = `US$ ${usage.cost.toFixed(2).replace(".", ",")}`;
+    $("calls").textContent = number(usage.calls);
+    $("average").textContent = usage.calls ? number(usage.total / usage.calls) : "0";
+    $("axis-max").textContent = number(max);
+    $("axis-mid").textContent = number(max / 2);
+
+    $("bars").replaceChildren(...usage.days.map((day) => {
+      const bar = element("span");
+      bar.style.height = `${day.tokens / max * 100}%`;
+      const slot = element("div", { className: "slot" }, [bar]);
+      slot.dataset.tip = `${day.day.slice(8)}/${day.day.slice(5, 7)}: ${number(day.tokens)} tokens`;
+      return slot;
+    }));
+    $("labels").replaceChildren(...usage.days.map((day) => element("div", { textContent: day.day.slice(8) })));
+
+    const sources = Object.entries(usage.by_source).map(([source, tokens]) => `${source}: ${number(tokens)}`);
+    $("sources").textContent = sources.length ? `Por origem: ${sources.join(" · ")}` : "Nenhuma chamada de IA nesses dias.";
+  }
+
+  function removeButton(label, action) {
+    const button = element("button", { type: "button", className: "remove", textContent: "✕" });
+    button.setAttribute("aria-label", label);
+    button.onclick = action;
+    return button;
+  }
+
+  function renderSkills(skills) {
+    const repos = Object.entries(skills);
+    $("skills").replaceChildren(...(repos.length ? repos.map(([name, list]) => element("div", { className: "item" }, [
+      element("span", {}, [element("div", { textContent: name }), element("div", { className: "muted", textContent: list.join(", ") })]),
+      removeButton(`Remover ${name}`, async () => show(await api().remove_skill_repo(name), renderSkills))
+    ])) : [element("span", { className: "muted", textContent: "Nenhum repositório ainda." })]));
+  }
+
+  function renderMemory(memory) {
+    $("memory").replaceChildren(...Object.entries(memory).map(([subject, { title, items }]) => {
+      const list = element("div", { className: "list" }, items.map(([key, value]) => element("div", { className: "item" }, [
+        element("span", { textContent: `${key}: ${value}` }),
+        removeButton(`Esquecer ${key}`, async () => show(await api().forget_memory(subject, key), renderMemory))
+      ])));
+      return element("details", {}, [element("summary", { textContent: `${title} (${items.length})` }), list]);
+    }));
+  }
+
+  // Respostas do Python: {"error": ...} ou {"ok": dados}.
+  function show(result, render) {
+    if (result.error) {
+      status(result.error);
+    } else {
+      status("");
+      render(result.ok);
+    }
+  }
+
+  $("rate").oninput = () => {
+    const value = Number($("rate").value);
+    preferences.rate = `${value < 0 ? "-" : "+"}${Math.abs(value)}%`;
+    $("rate-label").textContent = preferences.rate;
+  };
+
+  for (const key of ["wake_word", "speak_replies"]) {
+    $(key).onclick = () => { preferences[key] = !preferences[key]; renderPreferences(); };
+  }
+
+  $("preview").onclick = async () => {
+    status("Falando…");
+    show(await api().preview_voice(preferences.voice, preferences.rate), () => {});
+  };
+
+  $("save").onclick = async () => {
+    show(await api().save_preferences(preferences), (saved) => {
+      preferences = saved;
+      renderPreferences();
+      status("Preferências salvas.");
+    });
+  };
+
+  $("skill-form").onsubmit = async (event) => {
+    event.preventDefault();
+    status("Baixando o repositório…");
+    show(await api().add_skill_repo($("repo").value), (skills) => {
+      $("repo").value = "";
+      renderSkills(skills);
+      status("Repositório adicionado.");
+    });
+  };
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") api().hide_panel();
+  });
+
+  // Chamado pelo Python sempre que o painel abre.
+  async function refresh() {
+    const data = await api().load_panel();
+    preferences = data.preferences;
+    window.voices = data.voices;
+    renderPreferences();
+    renderSkills(data.skills);
+    renderMemory(data.memory);
+    status("");
+    renderUsage(await api().load_usage());
+  }
+</script>
+</body>
+</html>
