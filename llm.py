@@ -61,8 +61,11 @@ class LLMError(Exception):
     pass
 
 
-def ask_llm(question, source):
-    """Retorna (resposta falada, comando). O comando é None quando a IA só respondeu."""
+def ask_llm(question, source, history=None):
+    """Retorna (resposta falada, comando). O comando é None quando a IA só respondeu.
+
+    history: mensagens anteriores da conversa, no formato {"role", "content"}.
+    """
     api_key = os.getenv("DEEPSEEK_API_KEY")
 
     if not api_key:
@@ -76,6 +79,7 @@ def ask_llm(question, source):
                 "model": DEEPSEEK_MODEL,
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
+                    *(history or []),
                     {"role": "user", "content": question}
                 ],
                 "tools": TOOLS,

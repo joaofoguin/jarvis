@@ -8,6 +8,7 @@
 - Toda chamada de IA registra tokens na tabela `ai_usage` (`sql/ai_usage.sql`). Mantenha esse registro em qualquer novo provedor.
 - As rotas da fila exigem `AGENT_TOKEN`. O agente fecha cada comando como `completed`, `failed` ou `rejected`.
 - Ações que a IA pode escolher ficam em `TOOLS` (`llm.py`) e viram comandos por `command_for_tool` (`router.py`). Tarefas `claude_code:` rodam só dentro de `JARVIS_WORKSPACE`, sem Bash.
+- A janela de chat (`desktop/`) reusa `router.py`, `llm.py` e as ações de `agent/agent.py`. Não duplique essa lógica.
 - O agente local só executa ações de uma lista permitida. Nunca execute texto livre como comando de terminal.
 - Nunca versione `.env`, chaves ou strings de conexão.
 - Testes: `pip install -r requirements-dev.txt` e `python -m pytest`. Não chame APIs reais nos testes.

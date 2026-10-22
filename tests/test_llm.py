@@ -101,3 +101,19 @@ def test_tools_are_sent_to_deepseek(monkeypatch):
     llm.ask_llm("oi", "jarvis")
 
     assert {t["function"]["name"] for t in sent["tools"]} == {"open_notepad", "open_whatsapp", "claude_code"}
+
+
+def test_history_goes_between_system_and_question(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(llm, "log_usage", lambda *args: None)
+
+    def post(url, **kwargs):
+        sent.update(kwargs["json"])
+        return FakeResponse({"choices": [{"message": {"content": "ok"}}]})
+
+    monkeypatch.setattr(llm.requests, "post", post)
+    history = [{"role": "user", "content": "oi"}, {"role": "assistant", "content": "olá"}]
+
+    llm.ask_llm("tudo bem?", "desktop", history)
+
+    assert [m["content"] for m in sent["messages"][1:]] == ["oi", "olá", "tudo bem?"]
