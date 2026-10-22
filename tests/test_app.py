@@ -21,6 +21,19 @@ class FakeWindow:
         self.visible = False
 
 
+class FakeOrb:
+
+    def __init__(self):
+        self.state = "idle"
+        self.accent = None
+
+    def set_state(self, state):
+        self.state = state
+
+    def set_accent(self, color):
+        self.accent = color
+
+
 @pytest.fixture
 def app(monkeypatch):
     # O app real abre janelas e o ícone do Windows; nos testes, só a lógica.
@@ -35,7 +48,7 @@ def app(monkeypatch):
 def jarvis(app):
     from desktop import settings
 
-    return app.Jarvis(settings.load(), FakeWindow(), FakeWindow())
+    return app.Jarvis(settings.load(), FakeOrb(), FakeWindow())
 
 
 def test_text_is_sent_to_javascript_as_safe_strings(app):
@@ -72,7 +85,7 @@ def test_spoken_question_is_answered_aloud_with_task_result(app, jarvis, monkeyp
 def test_voice_state_reaches_orb_and_chat(jarvis):
     jarvis.show_state("listening")
 
-    assert jarvis.orb.calls == ['setState("listening")']
+    assert jarvis.orb.state == "listening"
     assert jarvis.chat.calls == ['setState("listening")']
 
 
@@ -100,7 +113,7 @@ def test_saved_preferences_apply_without_restarting(jarvis):
 
     assert jarvis.voice.voice == "pt-BR-FranciscaNeural"
     assert not jarvis.voice.wake_word
-    assert jarvis.orb.calls == ['setAccent("#A98BFF")']
+    assert jarvis.orb.accent == "#A98BFF"
     assert jarvis.chat.calls == ['setAccent("#A98BFF")']
 
 

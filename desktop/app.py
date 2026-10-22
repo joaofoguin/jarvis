@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw
 
 from desktop import dashboard, notices, settings
 from desktop.core import reply_to
+from desktop.orb import Orb
 from desktop.panel import Panel
 from desktop.voice import Voice
 
@@ -27,11 +28,6 @@ from desktop.voice import Voice
 HOTKEY = os.getenv("JARVIS_HOTKEY", "ctrl+alt+j")
 
 WEB = Path(__file__).resolve().parent / "web"
-
-ORB_SIZE = 160
-
-# Distância do orbe até o canto inferior direito da tela.
-ORB_MARGIN = 40
 
 # De quanto em quanto tempo o mural do Classroom é consultado, em segundos.
 NOTICES_INTERVAL = 300
@@ -41,26 +37,6 @@ def make_icon_image():
     image = Image.new("RGB", (64, 64), (16, 92, 160))
     ImageDraw.Draw(image).text((26, 22), "J", fill="white")
     return image
-
-
-def make_round(window):
-    """Recorta a janela do orbe num círculo.
-
-    A transparência do WebView2 no Windows deixa um quadrado cinza e, com cor-chave, a janela para
-    de receber cliques. Recortar a própria janela não tem nenhum dos dois problemas.
-    """
-
-    from ctypes import windll
-
-    from System import Func, Type
-
-    form = window.native
-
-    def apply():
-        region = windll.gdi32.CreateEllipticRgn(0, 0, form.Width + 1, form.Height + 1)
-        windll.user32.SetWindowRgn(form.Handle.ToInt32(), region, True)
-
-    form.Invoke(Func[Type](apply))
 
 
 def watch_notices(jarvis, icon):
@@ -140,13 +116,13 @@ class Jarvis:
         self.voice.wake_word = preferences["wake_word"]
         self.voice.speak_replies = preferences["speak_replies"]
 
-        for window in (self.orb, self.chat):
-            call_js(window, "setAccent", self.accent)
+        self.orb.set_accent(self.accent)
+        call_js(self.chat, "setAccent", self.accent)
 
     def start(self):
         # Roda numa thread própria assim que as janelas abrem.
-        for window in (self.orb, self.chat):
-            call_js(window, "setAccent", self.accent)
+        self.orb.start(self.talk, self.toggle_chat)
+        call_js(self.chat, "setAccent", self.accent)
 
         self.write("jarvis", f"Online, senhor. Diga \"Hey Jarvis\", clique no orbe ou use {HOTKEY} para o chat.")
 
@@ -184,8 +160,8 @@ class Jarvis:
         call_js(self.chat, "addMessage", author, text)
 
     def show_state(self, state):
-        for window in (self.orb, self.chat):
-            call_js(window, "setState", state)
+        self.orb.set_state(state)
+        call_js(self.chat, "setState", state)
 
     def closing(self):
         if self.quitting:
@@ -197,21 +173,6 @@ class Jarvis:
 
 
 def main():
-    screen = webview.screens[0]
-
-    orb = webview.create_window(
-        "JARVIS",
-        str(WEB / "orb.html"),
-        width=ORB_SIZE,
-        height=ORB_SIZE,
-        x=screen.width - ORB_SIZE - ORB_MARGIN,
-        y=screen.height - ORB_SIZE - ORB_MARGIN * 2,
-        frameless=True,
-        on_top=True,
-        resizable=False,
-        shadow=False,
-        background_color="#070B12"
-    )
     # Sem a barra do Windows: cada tela tem os próprios botões e é arrastada pelo topo.
     chat = webview.create_window(
         "JARVIS", str(WEB / "chat.html"), width=520, height=640, hidden=True,
@@ -222,9 +183,9 @@ def main():
         frameless=True, easy_drag=False, background_color="#070B12"
     )
 
-    jarvis = Jarvis(settings.load(), orb, chat)
+    preferences = settings.load()
+    jarvis = Jarvis(preferences, Orb(preferences["accent"]), chat)
     panel = jarvis.panel = Panel(jarvis, panel_window)
-    orb.expose(jarvis.talk, jarvis.toggle_chat)
     chat.expose(
         jarvis.send, jarvis.talk, jarvis.hide_chat, jarvis.open_panel,
         jarvis.toggle_fullscreen, jarvis.load_section, jarvis.open_link
@@ -234,14 +195,13 @@ def main():
         panel.add_skill_repo, panel.remove_skill_repo, panel.forget_memory, panel.hide_panel,
         panel.connect_notices
     )
-    orb.events.loaded += lambda: make_round(orb)
     chat.events.closing += jarvis.closing
     panel_window.events.closing += panel.closing
 
     def quit_app():
         jarvis.quitting = True
         icon.stop()
-        orb.destroy()
+        jarvis.orb.destroy()
         chat.destroy()
         panel_window.destroy()
 
