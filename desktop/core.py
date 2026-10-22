@@ -40,10 +40,10 @@ def reply_to(text, history):
 
     if command.startswith(GOOGLE_AGENDA_PREFIX):
         days = int(command[len(GOOGLE_AGENDA_PREFIX):])
-        return answer, lambda: run_google(google_data.agenda_summary, days)
+        return answer, lambda: run_google(google_data.agenda_summary, days, None, text)
 
     if command == GOOGLE_CLASSROOM:
-        return answer, lambda: run_google(google_data.classroom_summary)
+        return answer, lambda: run_google(google_data.classroom_summary, None, text)
 
     try:
         run_action(command)

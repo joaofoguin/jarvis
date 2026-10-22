@@ -27,11 +27,17 @@ LOGIN_TIMEOUT = 120
 PENDING_STATES = ["NEW", "CREATED", "RECLAIMED_BY_STUDENT"]
 
 
-def accounts():
-    """E-mails de GOOGLE_ACCOUNTS (separados por vírgula). Vazio = uma conta, sem e-mail definido."""
+def accounts(request=""):
+    """E-mails de GOOGLE_ACCOUNTS (separados por vírgula). Vazio = uma conta, sem e-mail definido.
+
+    Se o pedido citar parte de um e-mail ("conta discente", "uenp"), só as contas citadas.
+    """
 
     emails = [email.strip() for email in os.getenv("GOOGLE_ACCOUNTS", "").split(",") if email.strip()]
-    return emails or [None]
+    words = {word for word in re.findall(r"\w+", request.lower()) if len(word) >= 4}
+    mentioned = [email for email in emails if words & set(re.split(r"[@._-]+", email.lower()))]
+
+    return mentioned or emails or [None]
 
 
 def token_file(account):
@@ -76,14 +82,14 @@ def get_credentials(account):
     return creds
 
 
-def services(name, version):
+def services(name, version, request=""):
     """Retorna [(conta, serviço)] para cada conta. Se o login de uma conta falhar, o serviço é o erro."""
 
     from googleapiclient.discovery import build
 
     result = []
 
-    for account in accounts():
+    for account in accounts(request):
         try:
             result.append((account, build(name, version, credentials=get_credentials(account), cache_discovery=False)))
 
@@ -93,9 +99,14 @@ def services(name, version):
     return result
 
 
+def short_error(error):
+    # Erros da API do Google trazem um JSON enorme; o motivo basta para o chat.
+    return str(getattr(error, "reason", None) or error)[:200]
+
+
 def login_error(account, error):
     who = account or "sua conta"
-    return f"Não consegui entrar em {who}: {error or 'o login não foi concluído a tempo'}"
+    return f"Não consegui entrar em {who}: {short_error(error) or 'o login não foi concluído a tempo'}"
 
 
 def label(account, many):
@@ -103,8 +114,8 @@ def label(account, many):
     return f" [{account}]" if many and account else ""
 
 
-def agenda_summary(days, account_services=None):
-    account_services = account_services or services("calendar", "v3")
+def agenda_summary(days, account_services=None, request=""):
+    account_services = account_services or services("calendar", "v3", request)
     many = len(account_services) > 1
 
     start = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -129,7 +140,7 @@ def agenda_summary(days, account_services=None):
             ).execute().get("items", [])
 
         except Exception as error:
-            errors.append(f"Não consegui ler a agenda de {account}: {error}")
+            errors.append(f"Não consegui ler a agenda de {account}: {short_error(error)}")
             continue
 
         events += [(event_start(item), format_event(item) + label(account, many)) for item in items]
@@ -139,8 +150,10 @@ def agenda_summary(days, account_services=None):
     if events:
         events.sort(key=lambda entry: entry[0])
         lines = [f"Sua agenda {period}:"] + [f"- {text}" for _, text in events[:MAX_ITEMS * 2]]
-    else:
+    elif len(errors) < len(account_services):
         lines = [f"Nenhum compromisso na sua agenda {period}, senhor."]
+    else:
+        lines = []
 
     return "\n".join(lines + errors)
 
@@ -164,8 +177,8 @@ def format_event(item):
     return f"{event_start(item):%d/%m} (dia todo) {title}"
 
 
-def classroom_summary(account_services=None):
-    account_services = account_services or services("classroom", "v1")
+def classroom_summary(account_services=None, request=""):
+    account_services = account_services or services("classroom", "v1", request)
     many = len(account_services) > 1
 
     pending = []
@@ -183,7 +196,7 @@ def classroom_summary(account_services=None):
             ]
 
         except Exception as error:
-            errors.append(f"Não consegui ler o Classroom de {account}: {error}")
+            errors.append(f"Não consegui ler o Classroom de {account}: {short_error(error)}")
 
     if pending:
         # Atividades com prazo primeiro, da mais urgente para a menos urgente.
@@ -193,8 +206,10 @@ def classroom_summary(account_services=None):
         for due, course, title in pending[:MAX_ITEMS]:
             deadline = f"até {due:%d/%m}" if due else "sem prazo"
             lines.append(f"- {title} ({course}, {deadline})")
-    else:
+    elif len(errors) < len(account_services):
         lines = ["Nenhuma atividade pendente no Classroom, senhor."]
+    else:
+        lines = []
 
     return "\n".join(lines + errors)
 

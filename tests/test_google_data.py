@@ -186,3 +186,29 @@ def test_services_keeps_going_when_one_login_fails(monkeypatch):
 
     assert result[0] == ("a@gmail.com", "serviço")
     assert isinstance(result[1][1], RuntimeError)
+
+
+def test_accounts_mentioned_in_request(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ACCOUNTS", "joaopedrosrlima@gmail.com,joao.lima@discente.uenp.edu.br,basedobit01@gmail.com")
+
+    assert google_data.accounts("tarefas na minha conta discente") == ["joao.lima@discente.uenp.edu.br"]
+    assert google_data.accounts("agenda da uenp") == ["joao.lima@discente.uenp.edu.br"]
+    assert len(google_data.accounts("o que tenho hoje")) == 3
+
+
+class ApiError(Exception):
+    reason = "Google Classroom API has not been used in project 123 before or it is disabled."
+
+
+class FailingClassroom:
+    def courses(self):
+        raise ApiError("<HttpError 403 ... JSON enorme ...>")
+
+
+def test_api_errors_are_short_and_do_not_claim_nothing_pending():
+    text = google_data.classroom_summary([("eu@uenp.edu.br", FailingClassroom())])
+
+    assert text == (
+        "Não consegui ler o Classroom de eu@uenp.edu.br: "
+        "Google Classroom API has not been used in project 123 before or it is disabled."
+    )
