@@ -449,6 +449,14 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
   - Na primeira consulta de uma turma, os avisos que já existiam só são marcados como vistos (em `~/.jarvis/avisos_vistos.json`), sem notificar.
 - As notícias aparecem em blocos, como no Iniciar do Windows 10: o primeiro grande, alguns largos e cada tema com um tom da cor escolhida.
 
+### Atualização de 22/10/2026: orbe nativo transparente e visual HUD
+
+- Recortar a janela web também não tirou o fundo cinza no Windows. O orbe deixou de ser uma tela web: agora é desenhado com o Pillow (`desktop/orb.py`) numa janela própria do Windows "em camadas" (`UpdateLayeredWindow`), com transparência de verdade em cada pixel.
+- Fora do círculo a janela é invisível e o clique passa para o que está atrás. Dentro dele, clique para falar, botão direito abre e fecha o chat, e dá para arrastar. O orbe não rouba o foco nem aparece na barra de tarefas.
+- O orbe roda numa thread própria, a uns 30 quadros por segundo, e se ajusta à escala da tela do Windows. Os estados (espera, ouvindo, pensando, falando) e a cor vêm do `Jarvis` por `set_state` e `set_accent`.
+- O chat em tela cheia virou um painel HUD, inspirado em interfaces do JARVIS dos filmes: topo com status e relógio, calendário do mês com a agenda de hoje e o Classroom à esquerda, o reator animado e a conversa no centro, e feed (histórico), notícias e uso de IA à direita. Os cartões têm cantos marcados e títulos numerados.
+- A janela pequena do chat e o painel de preferências usam o mesmo visual. Fontes do próprio Windows (Bahnschrift e Cascadia Mono/Consolas), sem baixar nada.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados

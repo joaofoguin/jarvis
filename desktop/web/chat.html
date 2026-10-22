@@ -4,133 +4,270 @@
 <meta charset="utf-8">
 <title>JARVIS</title>
 <style>
-  :root { --accent: #3FD4F5; --ground: #070B12; --panel: #0D1520; --line: #1B2A3A; --text: #E6F1FA; --muted: #8FA6BA; }
+  :root {
+    --accent: #3FD4F5; --ground: #04080D; --panel: #08111A; --line: color-mix(in srgb, var(--accent) 18%, #0E1A26);
+    --text: #DDF3FB; --muted: #6F8CA0; --faint: #3B5263;
+    --mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+    --display: Bahnschrift, "Segoe UI", system-ui, sans-serif;
+  }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--ground); color: var(--text); font: 15px/1.5 "Segoe UI", Inter, system-ui, sans-serif; }
+  html, body { margin: 0; height: 100%; color: var(--text); font: 14px/1.5 "Segoe UI", Inter, system-ui, sans-serif; }
+  body {
+    background:
+      radial-gradient(900px 600px at 50% 40%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%),
+      linear-gradient(color-mix(in srgb, var(--accent) 4%, transparent) 1px, transparent 1px) 0 0 / 44px 44px,
+      linear-gradient(90deg, color-mix(in srgb, var(--accent) 4%, transparent) 1px, transparent 1px) 0 0 / 44px 44px,
+      var(--ground);
+  }
   button { font: inherit; cursor: pointer; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-  /* Janela pequena: só o chat. Tela cheia: chat à esquerda e o painel à direita. */
-  .app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); }
-  .chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid transparent; }
-  .hud { display: none; }
+  /* Janela pequena: só o chat. Tela cheia: painéis dos dois lados do reator, como um HUD. */
+  .app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "top" "center"; }
+  @media (max-width: 999px) {
+    .side, .reactor, .foot, .wide-only { display: none !important; }
+  }
 
   @media (min-width: 1000px) {
-    .app { grid-template-columns: minmax(380px, 460px) minmax(0, 1fr); }
-    .chat { border-right-color: var(--line); }
-    .hud { display: grid; }
+    .app {
+      grid-template-columns: minmax(280px, 1fr) minmax(420px, 1.25fr) minmax(280px, 1fr);
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      grid-template-areas: "top top top" "left center right" "foot foot foot";
+      column-gap: 28px; padding: 0 28px;
+    }
+    .compact-only { display: none !important; }
   }
 
-  header { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 18px; border-bottom: 1px solid var(--line); user-select: none; }
-  .dot {
-    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
-    background: radial-gradient(circle at 50% 45%, #fff 0%, var(--accent) 40%, var(--panel) 100%);
-    box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 55%, transparent);
-  }
-  .name { font-weight: 600; font-size: 12px; letter-spacing: 4px; color: var(--muted); }
-  #state { margin-left: auto; font-size: 13px; color: var(--accent); }
-  .tools { display: flex; gap: 2px; }
-  .icon { width: 40px; height: 40px; border-radius: 10px; border: none; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; }
-  .icon:hover { color: var(--text); background: var(--panel); }
+  /* Topo */
+  header { grid-area: top; display: flex; align-items: center; gap: 14px; padding: 10px 10px 10px 18px; border-bottom: 1px solid var(--line); user-select: none; }
+  @media (min-width: 1000px) { header { padding: 18px 0 16px; } }
+  .brand { display: flex; flex-direction: column; }
+  .brand b { font: 600 13px/1.2 var(--display); letter-spacing: 5px; color: var(--accent); }
+  @media (min-width: 1000px) { .brand b { font-size: 30px; font-weight: 300; letter-spacing: 8px; } }
+  .eyebrow { font: 10px/1.6 var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
+  .status { margin: 0 auto; display: flex; gap: 28px; }
+  .status div { display: flex; flex-direction: column; align-items: center; }
+  .status b { font: 13px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+  .status b::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+  .clock { text-align: right; }
+  .clock b { display: block; font: 300 34px/1 var(--display); letter-spacing: 2px; font-variant-numeric: tabular-nums; }
+  #state-small { margin-left: auto; font: 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
+  .tools { display: flex; gap: 6px; }
+  .icon { width: 38px; height: 38px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+  .icon:hover { color: var(--accent); border-color: var(--accent); }
 
-  #log { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
-  .message { max-width: 88%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .jarvis { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); }
-  .user { align-self: flex-end; background: #13202E; }
-
-  form { display: flex; gap: 8px; padding: 12px 18px 18px; }
-  input {
-    flex: 1; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line);
-    background: var(--panel); color: var(--text); font: inherit;
+  /* Cartões com cantos marcados */
+  .card {
+    --corner: color-mix(in srgb, var(--accent) 70%, transparent);
+    position: relative; min-width: 0; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;
+    border: 1px solid var(--line);
+    background:
+      linear-gradient(var(--corner), var(--corner)) top left / 14px 1px no-repeat,
+      linear-gradient(var(--corner), var(--corner)) top left / 1px 14px no-repeat,
+      linear-gradient(var(--corner), var(--corner)) top right / 14px 1px no-repeat,
+      linear-gradient(var(--corner), var(--corner)) top right / 1px 14px no-repeat,
+      linear-gradient(var(--corner), var(--corner)) bottom left / 14px 1px no-repeat,
+      linear-gradient(var(--corner), var(--corner)) bottom left / 1px 14px no-repeat,
+      linear-gradient(var(--corner), var(--corner)) bottom right / 14px 1px no-repeat,
+      linear-gradient(var(--corner), var(--corner)) bottom right / 1px 14px no-repeat,
+      linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel) 70%, transparent));
   }
-  input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
-  .round { width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; border: none; display: flex; align-items: center; justify-content: center; }
-  #talk { background: transparent; border: 1px solid var(--accent); color: var(--text); }
+  .title { display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font: 12px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
+  .title span { color: var(--faint); letter-spacing: 1px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .scroll { overflow-y: auto; min-height: 0; }
+
+  .side { grid-area: left; display: flex; flex-direction: column; gap: 22px; padding: 22px 0; min-height: 0; overflow-y: auto; }
+  .side.right { grid-area: right; }
+
+  /* Calendário do mês */
+  .month { display: flex; justify-content: space-between; align-items: baseline; }
+  .month b { font: 300 20px var(--display); letter-spacing: 1px; }
+  .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font: 12px var(--mono); }
+  .calendar .week { color: var(--faint); font-size: 10px; letter-spacing: 1px; padding-bottom: 2px; }
+  .calendar .day { padding: 5px 0; border: 1px solid color-mix(in srgb, var(--accent) 8%, transparent); color: var(--muted); }
+  .calendar .today { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent) inset; }
+
+  .rows { display: flex; flex-direction: column; gap: 6px; }
+  .row { padding: 7px 10px; border-left: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 5%, transparent); font-size: 13px; overflow-wrap: anywhere; }
+  .task { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere; }
+  .task::before { content: ""; flex-shrink: 0; width: 12px; height: 12px; margin-top: 3px; border-radius: 50%; border: 1px solid var(--accent); }
+
+  /* Centro: reator e conversa */
+  .center { grid-area: center; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  @media (min-width: 1000px) { .center { padding: 22px 0; gap: 16px; } }
+  .reactor { flex-shrink: 0; margin: 0 auto; width: 260px; height: 260px; }
+  .reactor svg { width: 100%; height: 100%; overflow: visible; }
+  .reactor .spin { transform-origin: 130px 130px; animation: spin 24s linear infinite; }
+  .reactor .spin.back { animation-duration: 60s; animation-direction: reverse; }
+  .reactor .ripple { transform-origin: 130px 130px; opacity: 0; }
+  .reactor .bars { opacity: 0; transition: opacity .2s; }
+  .reactor .bars line { transform-origin: 130px 130px; animation: bar .6s ease-in-out infinite; }
+  .reactor .nucleus { transform-origin: 130px 130px; animation: breathe 4s ease-in-out infinite; }
+  [data-state="listening"] .ripple { animation: ripple 2.1s ease-out infinite; }
+  [data-state="listening"] .ripple:nth-of-type(2) { animation-delay: .7s; }
+  [data-state="listening"] .ripple:nth-of-type(3) { animation-delay: 1.4s; }
+  [data-state="listening"] .spin:not(.back) { animation-duration: 3s; }
+  [data-state="thinking"] .spin:not(.back) { animation-duration: .9s; }
+  [data-state="speaking"] .bars { opacity: 1; }
+  [data-state="speaking"] .nucleus { animation-duration: .9s; }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  @keyframes ripple { 0% { transform: scale(.4); opacity: .9 } 100% { transform: scale(1); opacity: 0 } }
+  /* Cada barra cresce para fora a partir da ponta de dentro (raio 90). */
+  @keyframes bar { 0%, 100% { transform: var(--turn) translateY(-90px) scaleY(.35) translateY(90px) } 50% { transform: var(--turn) translateY(-90px) scaleY(1) translateY(90px) } }
+  @keyframes breathe { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.07) } }
+  #state { text-align: center; font: 12px var(--mono); letter-spacing: 4px; text-transform: uppercase; color: var(--accent); }
+
+  .conversation { flex: 1; min-height: 0; }
+  @media (max-width: 999px) { .conversation { border: none; background: none; padding: 0; } }
+  #log { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 14px; }
+  @media (min-width: 1000px) { #log { padding: 4px 4px 4px 0; } }
+  .message { max-width: 90%; display: flex; flex-direction: column; gap: 3px; }
+  .message .who { font: 10px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--faint); }
+  .message .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .jarvis { align-self: flex-start; padding-left: 12px; border-left: 2px solid var(--accent); }
+  .jarvis .who { color: var(--accent); }
+  .user { align-self: flex-end; text-align: right; padding: 8px 12px; border: 1px solid var(--line); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+
+  form { display: flex; align-items: center; gap: 8px; margin: 0 18px 18px; padding: 6px 6px 6px 16px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 999px; background: var(--panel); box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 12%, transparent); }
+  @media (min-width: 1000px) { form { margin: 0; } }
+  input { flex: 1; min-width: 0; min-height: 40px; border: none; background: transparent; color: var(--text); font: 14px var(--mono); letter-spacing: 1px; }
+  input::placeholder { color: var(--faint); text-transform: uppercase; letter-spacing: 3px; font-size: 12px; }
+  input:focus { outline: none; }
+  form:focus-within { border-color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .round { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; }
+  #talk { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
   #send { background: var(--accent); color: #04111A; }
 
-  /* Painel lateral */
-  .hud {
-    overflow-y: auto; padding: 28px; gap: 18px; align-content: start;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    background: radial-gradient(1200px 600px at 100% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%);
-  }
-  .card { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: color-mix(in srgb, var(--panel) 80%, transparent); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-  .wide { grid-column: 1 / -1; }
-  .label { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
-  .label::before { content: ""; width: 14px; height: 1px; background: var(--accent); }
-  .clock { font-size: 64px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: 2px; }
-  .date { color: var(--muted); font-size: 16px; }
-  .text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
-  .muted { color: var(--muted); font-size: 13px; }
-  .list { display: flex; flex-direction: column; gap: 4px; }
   /* Notícias em blocos, como os do Iniciar do Windows 10. */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); grid-auto-rows: 132px; grid-auto-flow: dense; gap: 6px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); grid-auto-rows: 104px; grid-auto-flow: dense; gap: 6px; }
   .tile {
-    position: relative; text-align: left; border: 1px solid transparent; border-radius: 4px; padding: 12px 14px; color: var(--text);
-    display: flex; flex-direction: column; justify-content: space-between; gap: 6px; overflow: hidden;
+    text-align: left; border: 1px solid var(--line); padding: 10px 12px; color: var(--text);
+    display: flex; flex-direction: column; justify-content: space-between; gap: 4px; overflow: hidden;
     background: color-mix(in srgb, var(--accent) var(--tint), var(--panel));
   }
   .tile:hover, .tile:focus-visible { border-color: var(--accent); }
-  .tile .topic { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tile .title { font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+  .tile .topic { font: 9px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .headline { font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+  .tile .muted { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tile.big { grid-column: span 2; grid-row: span 2; }
-  .tile.big .title { font-size: 20px; font-weight: 300; -webkit-line-clamp: 6; }
+  .tile.big .headline { font: 300 18px/1.3 var(--display); -webkit-line-clamp: 6; }
   .tile.wide { grid-column: span 2; }
-  .entry { padding: 8px 0; border-bottom: 1px solid #16222F; font-size: 14px; }
-  .entry:last-child { border-bottom: none; }
-  .stats { display: flex; gap: 28px; flex-wrap: wrap; }
-  .stats b { display: block; font-size: 26px; font-weight: 400; font-variant-numeric: tabular-nums; }
+
+  /* Feed: o histórico como um registro do sistema */
+  .feed { font: 12px/1.5 var(--mono); display: flex; flex-direction: column; gap: 6px; }
+  .feed div { overflow-wrap: anywhere; }
+  .feed time { color: var(--faint); margin-right: 8px; }
+  .feed .answer { color: var(--muted); }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stats b { display: block; font: 300 24px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+
+  .foot { grid-area: foot; display: flex; justify-content: space-between; padding: 10px 0 14px; border-top: 1px solid var(--line); font: 10px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--faint); }
 </style>
 </head>
 <body>
 <div class="app">
-  <section class="chat">
-    <header class="pywebview-drag-region">
-      <div class="dot" aria-hidden="true"></div>
-      <span class="name">J.A.R.V.I.S.</span>
-      <span id="state" aria-live="polite"></span>
-      <div class="tools">
-        <button type="button" class="icon" id="settings" aria-label="Preferências">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>
-        </button>
-        <button type="button" class="icon" id="fullscreen" aria-label="Tela cheia">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>
-        </button>
-        <button type="button" class="icon" id="close" aria-label="Esconder">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
-        </button>
-      </div>
-    </header>
+  <header class="pywebview-drag-region">
+    <div class="brand">
+      <b>J.A.R.V.I.S.</b>
+      <span class="eyebrow wide-only">Sistema pessoal de comando</span>
+    </div>
+    <span id="state-small" class="compact-only" aria-hidden="true"></span>
+    <div class="status wide-only">
+      <div><span class="eyebrow">Sistema</span><b>Online</b></div>
+      <div><span class="eyebrow">Voz</span><b id="voice-state">Aguardando</b></div>
+    </div>
+    <div class="clock wide-only"><b id="clock"></b><span class="eyebrow" id="date"></span></div>
+    <div class="tools">
+      <button type="button" class="icon" id="settings" aria-label="Preferências">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>
+      </button>
+      <button type="button" class="icon" id="fullscreen" aria-label="Tela cheia">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>
+      </button>
+      <button type="button" class="icon" id="close" aria-label="Esconder">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+  </header>
 
-    <main id="log" aria-live="polite"></main>
+  <aside class="side" aria-label="Agenda e Classroom">
+    <section class="card">
+      <div class="title">Protocolo temporal<span>01</span></div>
+      <div class="month"><b id="month"></b><span class="muted" id="weekday"></span></div>
+      <div class="calendar" id="calendar"></div>
+      <div class="eyebrow">Agenda de hoje</div>
+      <div class="rows" id="agenda">Carregando…</div>
+    </section>
+    <section class="card">
+      <div class="title">Classroom · pendentes<span>02</span></div>
+      <div class="rows" id="classroom">Carregando…</div>
+    </section>
+  </aside>
+
+  <section class="center">
+    <div class="reactor" aria-hidden="true">
+      <svg viewBox="0 0 260 260" id="reactor" data-state="idle">
+        <defs>
+          <radialGradient id="glow"><stop offset="0" stop-color="#fff"></stop><stop offset=".4" stop-color="var(--accent)"></stop><stop offset="1" stop-color="#0D1520"></stop></radialGradient>
+          <radialGradient id="haze"><stop offset="0" stop-color="var(--accent)" stop-opacity=".18"></stop><stop offset="1" stop-color="var(--accent)" stop-opacity="0"></stop></radialGradient>
+        </defs>
+        <circle cx="130" cy="130" r="128" fill="url(#haze)"></circle>
+        <g id="ticks" class="spin back"></g>
+        <circle cx="130" cy="130" r="104" fill="none" stroke="var(--accent)" stroke-opacity=".25"></circle>
+        <circle class="ripple" cx="130" cy="130" r="100" fill="none" stroke="var(--accent)" stroke-width="1.5"></circle>
+        <circle class="ripple" cx="130" cy="130" r="100" fill="none" stroke="var(--accent)" stroke-width="1.5"></circle>
+        <circle class="ripple" cx="130" cy="130" r="100" fill="none" stroke="var(--accent)" stroke-width="1.5"></circle>
+        <g class="bars" id="bars"></g>
+        <circle class="spin" cx="130" cy="130" r="76" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="14 16" stroke-opacity=".8"></circle>
+        <circle cx="130" cy="130" r="60" fill="none" stroke="var(--accent)" stroke-opacity=".2"></circle>
+        <circle class="nucleus" cx="130" cy="130" r="44" fill="url(#glow)"></circle>
+      </svg>
+    </div>
+    <div id="state" class="wide-only" aria-live="polite">Aguardando comando</div>
+
+    <div class="card conversation">
+      <div class="title wide-only">Conversa<span>00</span></div>
+      <main id="log" class="scroll" aria-live="polite"></main>
+    </div>
 
     <form id="form">
-      <label for="text" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Mensagem</label>
+      <label for="text" class="sr">Mensagem</label>
       <input id="text" autocomplete="off" placeholder="Fale com o JARVIS">
       <button type="button" class="round" id="talk" aria-label="Falar">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>
       </button>
       <button type="submit" class="round" id="send" aria-label="Enviar">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
       </button>
     </form>
   </section>
 
-  <aside class="hud" aria-label="Painel do dia">
-    <div class="card wide">
-      <span class="label">Hoje</span>
-      <div class="clock" id="clock"></div>
-      <div class="date" id="date"></div>
-    </div>
-    <div class="card"><span class="label">Agenda</span><div class="text" id="agenda">Carregando…</div></div>
-    <div class="card"><span class="label">Classroom · 30 dias</span><div class="text" id="classroom">Carregando…</div></div>
-    <div class="card wide"><span class="label">Notícias</span><div class="tiles" id="news">Carregando…</div></div>
-    <div class="card"><span class="label">Histórico</span><div id="history">Carregando…</div></div>
-    <div class="card"><span class="label">Uso de IA hoje</span><div id="usage">Carregando…</div></div>
+  <aside class="side right" aria-label="Atualizações">
+    <section class="card">
+      <div class="title">Feed ao vivo<span>03</span></div>
+      <div class="feed" id="history">Carregando…</div>
+    </section>
+    <section class="card">
+      <div class="title">Notícias<span>04</span></div>
+      <div class="tiles" id="news">Carregando…</div>
+    </section>
+    <section class="card">
+      <div class="title">Uso de IA · hoje<span>05</span></div>
+      <div id="usage">Carregando…</div>
+    </section>
   </aside>
+
+  <footer class="foot">
+    <span>J.A.R.V.I.S. · DeepSeek · fila Neon</span>
+    <span>Diga “Hey Jarvis” ou clique no orbe</span>
+  </footer>
 </div>
 
 <script>
-  const STATES = { idle: "", listening: "ouvindo…", thinking: "pensando…", speaking: "falando…" };
+  const STATES = { idle: "Aguardando comando", listening: "Ouvindo…", thinking: "Processando…", speaking: "Falando…" };
   const REFRESH_MINUTES = 10;
   const log = document.getElementById("log");
   const input = document.getElementById("text");
@@ -144,22 +281,59 @@
     return node;
   }
 
+  function svg(tag, attributes) {
+    const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    Object.entries(attributes).forEach(([name, value]) => node.setAttribute(name, value));
+    return node;
+  }
+
+  // O aro de marcas e as barras do reator, como o equalizador do filme.
+  for (let i = 0; i < 72; i++) {
+    const major = i % 6 === 0;
+    $("ticks").appendChild(svg("line", {
+      x1: 130, y1: 6, x2: 130, y2: major ? 16 : 11, stroke: "var(--accent)", "stroke-opacity": major ? .7 : .3,
+      transform: `rotate(${i * 5} 130 130)`
+    }));
+  }
+
+  for (let i = 0; i < 36; i++) {
+    const bar = svg("line", { x1: 130, y1: 40, x2: 130, y2: 22, stroke: "var(--accent)", "stroke-width": 3, "stroke-linecap": "round" });
+    bar.style.setProperty("--turn", `rotate(${i * 10}deg)`);
+    bar.style.animationDuration = `${0.45 + (i * 3 % 4) * 0.1}s`;
+    bar.style.animationDelay = `${(i * 5 % 8) * 0.06}s`;
+    $("bars").appendChild(bar);
+  }
+
+  function clock(date) {
+    return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+
   // Chamadas pelo Python. O texto entra como texto, nunca como HTML.
   function addMessage(author, text) {
-    log.appendChild(element("div", { className: `message ${author}`, textContent: text }));
+    log.appendChild(element("div", { className: `message ${author}` }, [
+      element("span", { className: "who", textContent: `${author === "jarvis" ? "Jarvis" : "Você"} · ${clock(new Date())}` }),
+      element("span", { className: "text", textContent: text })
+    ]));
     log.scrollTop = log.scrollHeight;
 
     if (author === "jarvis" && wide.matches) loadSection("history");
   }
 
-  function setState(state) { $("state").textContent = STATES[state] || ""; }
+  function setState(state) {
+    const label = STATES[state] || STATES.idle;
+    $("reactor").dataset.state = state;
+    $("state").textContent = label;
+    $("state-small").textContent = state === "idle" ? "" : label;
+    $("voice-state").textContent = state === "idle" ? "Aguardando" : label.replace("…", "");
+  }
+
   function setAccent(color) { document.documentElement.style.setProperty("--accent", color); }
   function focusInput() { input.focus(); }
 
-  // Tira o título ("Sua agenda hoje:"), que o cartão já mostra.
-  function withoutTitle(text) {
-    const lines = text.split("\n");
-    return lines.length > 1 && lines[0].endsWith(":") ? lines.slice(1).join("\n") : text;
+  // Tira o título ("Sua agenda hoje:"), que o cartão já mostra, e separa as linhas.
+  function lines(text) {
+    const all = text.split("\n").map((line) => line.replace(/^[-•]\s*/, "").trim()).filter(Boolean);
+    return all.length > 1 && all[0].endsWith(":") ? all.slice(1) : all;
   }
 
   function ago(iso) {
@@ -169,9 +343,13 @@
     return `há ${Math.round(minutes / 1440)} d`;
   }
 
+  function empty(text) {
+    return [element("span", { className: "muted", textContent: text })];
+  }
+
   const RENDER = {
-    agenda: (text) => $("agenda").textContent = withoutTitle(text),
-    classroom: (text) => $("classroom").textContent = withoutTitle(text),
+    agenda: (text) => $("agenda").replaceChildren(...lines(text).map((line) => element("div", { className: "row", textContent: line }))),
+    classroom: (text) => $("classroom").replaceChildren(...lines(text).map((line) => element("div", { className: "task", textContent: line }))),
     news: (items) => {
       const topics = [...new Set(items.map((item) => item.topic))];
 
@@ -180,18 +358,19 @@
         const size = index === 0 ? "big" : index % 5 === 3 ? "wide" : "";
         const tile = element("button", { type: "button", className: `tile ${size}` }, [
           element("span", { className: "topic", textContent: item.topic }),
-          element("span", { className: "title", textContent: item.title }),
+          element("span", { className: "headline", textContent: item.title }),
           element("span", { className: "muted", textContent: [item.source, item.when && ago(item.when)].filter(Boolean).join(" · ") })
         ]);
-        tile.style.setProperty("--tint", `${8 + topics.indexOf(item.topic) % 3 * 6}%`);
+        tile.style.setProperty("--tint", `${6 + topics.indexOf(item.topic) % 3 * 5}%`);
         tile.onclick = () => api().open_link(item.link);
         return tile;
-      }) : [element("span", { className: "muted", textContent: "Escolha temas de notícias nas preferências." })]));
+      }) : empty("Escolha temas de notícias nas preferências.")));
     },
-    history: (entries) => $("history").replaceChildren(...(entries.length ? entries.map((entry) => element("div", { className: "entry" }, [
-      element("div", { textContent: entry.text }),
-      element("div", { className: "muted", textContent: `${entry.when.slice(11)} · ${entry.answer}` })
-    ])) : [element("span", { className: "muted", textContent: "Nada por aqui ainda." })])),
+    history: (entries) => $("history").replaceChildren(...(entries.length ? entries.map((entry) => element("div", {}, [
+      element("time", { textContent: `[${entry.when.slice(11)}]` }),
+      element("span", { textContent: entry.text }),
+      element("div", { className: "answer", textContent: `› ${entry.answer}` })
+    ])) : empty("Nada por aqui ainda."))),
     usage: (today) => $("usage").replaceChildren(element("div", { className: "stats" }, [
       element("div", {}, [element("b", { textContent: today.tokens.toLocaleString("pt-BR") }), element("span", { className: "muted", textContent: "tokens" })]),
       element("div", {}, [element("b", { textContent: today.calls }), element("span", { className: "muted", textContent: "perguntas" })]),
@@ -203,7 +382,7 @@
     const result = await api().load_section(name);
 
     if (result.error) {
-      $(name).textContent = `Indisponível: ${result.error}`;
+      $(name).replaceChildren(...empty(`Indisponível: ${result.error}`));
     } else {
       RENDER[name](result.ok);
     }
@@ -213,11 +392,34 @@
     if (wide.matches && window.pywebview) Object.keys(RENDER).forEach(loadSection);
   }
 
+  function calendar(now) {
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const cells = ["D", "S", "T", "Q", "Q", "S", "S"].map((name) => element("span", { className: "week", textContent: name }));
+
+    for (let blank = 0; blank < first.getDay(); blank++) cells.push(element("span"));
+    for (let day = 1; day <= days; day++) {
+      cells.push(element("span", { className: day === now.getDate() ? "day today" : "day", textContent: day }));
+    }
+
+    $("calendar").replaceChildren(...cells);
+    const month = now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    $("month").textContent = month.charAt(0).toUpperCase() + month.slice(1);
+    $("weekday").textContent = now.toLocaleDateString("pt-BR", { weekday: "long" });
+  }
+
+  let shownDay = null;
+
   function tick() {
     const now = new Date();
-    $("clock").textContent = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    const date = now.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    $("date").textContent = date.charAt(0).toUpperCase() + date.slice(1);
+    $("clock").textContent = now.toLocaleTimeString("pt-BR");
+    $("date").textContent = now.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+
+    // O calendário só muda quando vira o dia.
+    if (shownDay !== now.getDate()) {
+      shownDay = now.getDate();
+      calendar(now);
+    }
   }
 
   tick();
