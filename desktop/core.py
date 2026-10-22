@@ -1,13 +1,14 @@
 import browser
 import google_data
+import icloud_data
 import reports
 
 from agent.agent import call_claude_code, run_action
-from llm import BROWSER_TOOLS, GOOGLE_TOOLS, TOOLS, LLMError, ask_llm
+from llm import BROWSER_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, TOOLS, LLMError, ask_llm
 from router import (
     CLAUDE_CODE_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
-    INSTAGRAM_MESSAGES, WHATSAPP_PREFIX,
-    detect_browser, detect_command, detect_google, normalize, whatsapp_args
+    ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, WHATSAPP_PREFIX,
+    detect_browser, detect_command, detect_contact, detect_google, normalize, whatsapp_args
 )
 
 
@@ -41,11 +42,11 @@ def reply_to(text, history):
         if normalize(text).strip(" .!") in {"nao", "n", "cancela", "cancelar"}:
             return "Certo, senhor. Não enviei.", None
 
-    match = detect_browser(text) or detect_command(text) or detect_google(text)
+    match = detect_browser(text) or detect_command(text) or detect_contact(text) or detect_google(text)
 
     if not match:
         try:
-            answer, command = ask_llm(text, "desktop", history[-HISTORY_LIMIT:], TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS)
+            answer, command = ask_llm(text, "desktop", history[-HISTORY_LIMIT:], TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS)
 
         except LLMError as error:
             print("ERRO NA IA:", repr(error))
@@ -64,7 +65,11 @@ def reply_to(text, history):
 
     if command.startswith(GOOGLE_AGENDA_PREFIX):
         days = int(command[len(GOOGLE_AGENDA_PREFIX):])
-        return answer, lambda: run_google(google_data.agenda_summary, days, None, text)
+        return answer, lambda: agenda(days, text)
+
+    if command.startswith(ICLOUD_CONTACT_PREFIX):
+        name = browser.contact_name(command[len(ICLOUD_CONTACT_PREFIX):])
+        return answer, lambda: run_icloud(icloud_data.contact_summary, name)
 
     if command == GOOGLE_CLASSROOM:
         return answer, lambda: run_google(google_data.classroom_summary, None, text)
@@ -107,6 +112,26 @@ def run_google(function, *args):
     except Exception as error:
         print("ERRO NO GOOGLE:", repr(error))
         return f"Desculpe, senhor. Não consegui consultar o Google: {error}"
+
+
+def agenda(days, text):
+    """Agenda do Google e, se o iCloud estiver configurado, o calendário do iPhone."""
+
+    result = run_google(google_data.agenda_summary, days, None, text)
+
+    if icloud_data.configured():
+        result += "\n\n" + run_icloud(icloud_data.agenda_summary, days)
+
+    return result
+
+
+def run_icloud(function, *args):
+    try:
+        return function(*args)
+
+    except Exception as error:
+        print("ERRO NO ICLOUD:", repr(error))
+        return f"Desculpe, senhor. Não consegui consultar o iCloud: {error}"
 
 
 def run_browser(function, *args):

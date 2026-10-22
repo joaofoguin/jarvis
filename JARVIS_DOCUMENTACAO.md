@@ -366,6 +366,14 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - O roteador (`detect_browser`) reconhece "manda mensagem para X no WhatsApp dizendo Y" e "mensagens novas no Instagram" sem gastar tokens. A IA também pode escolher `enviar_whatsapp` e `ver_mensagens_instagram`.
 - Só funciona na janela de chat do notebook. Os sites mudam com frequência; se uma ação parar de funcionar, os seletores em `browser.py` precisam de ajuste.
 
+### Atualização de 22/10/2026: contatos e calendário do iPhone (iCloud)
+
+- `icloud_data.py` lê os contatos (CardDAV, `contacts.icloud.com`) e o calendário (CalDAV, `caldav.icloud.com`, com a biblioteca `caldav`) do iCloud. É somente leitura e só funciona na janela de chat do notebook.
+- O login usa `ICLOUD_EMAIL` e `ICLOUD_APP_PASSWORD` no `.env`. A senha é uma senha de app criada em account.apple.com, nunca a senha da conta Apple.
+- "Qual o número da X?" é reconhecido sem IA (`detect_contact`), e a IA também pode usar `buscar_contato`. Os apelidos de `WHATSAPP_APELIDOS` valem aqui, então "minha namorada" vira "Amor".
+- Quando o iCloud está configurado, os pedidos de agenda mostram o calendário do iCloud logo abaixo da agenda do Google.
+- O resultado fica no histórico do chat, e o histórico vai para a IA na próxima pergunta aberta. Então telefones consultados podem chegar à DeepSeek.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados

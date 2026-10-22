@@ -177,3 +177,24 @@ def test_instagram_runs_in_background(actions, monkeypatch):
     answer, task = core.reply_to("verifique se há novas mensagens no instagram", [])
 
     assert task() == "Nenhuma mensagem nova no Instagram, senhor."
+
+
+def test_contact_lookup_uses_aliases(actions, monkeypatch):
+    monkeypatch.setenv("WHATSAPP_APELIDOS", "namorada:Amor")
+    monkeypatch.setattr(core.icloud_data, "contact_summary", lambda name: f"procurei {name}")
+
+    answer, task = core.reply_to("qual o número da minha namorada?", [])
+
+    assert task() == "procurei Amor"
+
+
+def test_agenda_adds_icloud_when_configured(actions, monkeypatch):
+    monkeypatch.setattr(core.google_data, "agenda_summary", lambda *args: "Google")
+    monkeypatch.setattr(core.icloud_data, "agenda_summary", lambda days: f"iCloud {days}")
+    monkeypatch.setattr(core.icloud_data, "configured", lambda: True)
+
+    assert core.reply_to("o que tenho hoje?", [])[1]() == "Google\n\niCloud 1"
+
+    monkeypatch.setattr(core.icloud_data, "configured", lambda: False)
+
+    assert core.reply_to("o que tenho hoje?", [])[1]() == "Google"

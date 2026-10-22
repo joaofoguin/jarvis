@@ -68,6 +68,13 @@ WHATSAPP_PATTERN = re.compile(
 )
 INSTAGRAM_PATTERN = re.compile(r"\b(insta(gram)?|direct)\b.*\bmensage|\bmensage.*\b(insta(gram)?|direct)\b")
 
+# Contatos do iPhone, lidos do iCloud (só na janela de chat do notebook).
+ICLOUD_CONTACT_PREFIX = "icloud_contato:"
+
+CONTACT_PATTERN = re.compile(
+    r"\b(numero|telefone|celular|contato)( de telefone| do celular)? (da|do|de) (?P<nome>[\w ]+?)\s*\??$"
+)
+
 # Perguntas sobre o programa não são ordens para abri-lo.
 QUESTION_PREFIXES = ("como ", "o que ", "por que ", "porque ", "qual ", "quando ")
 
@@ -152,6 +159,18 @@ def detect_browser(question):
     return None
 
 
+def contact_command(name):
+    name = " ".join(str(name).split())[:60]
+    return (ICLOUD_CONTACT_PREFIX + name, GOOGLE_ANSWER) if name else None
+
+
+def detect_contact(question):
+    """Reconhece "qual o número da X" sem IA. Retorna (comando, resposta) ou None."""
+
+    match = CONTACT_PATTERN.search(normalize(question))
+    return contact_command(match["nome"]) if match else None
+
+
 def command_for_tool(name, arguments):
     """Converte uma ferramenta escolhida pela IA em (comando, resposta falada), ou None."""
 
@@ -169,6 +188,9 @@ def command_for_tool(name, arguments):
 
     if name == "ver_mensagens_instagram":
         return INSTAGRAM_MESSAGES, BROWSER_ANSWER
+
+    if name == "buscar_contato":
+        return contact_command(arguments.get("nome", ""))
 
     for item in COMMANDS:
         if item["tool"] == name:
