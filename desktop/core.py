@@ -1,6 +1,8 @@
+import google_data
+
 from agent.agent import call_claude_code, run_action
-from llm import LLMError, ask_llm
-from router import CLAUDE_CODE_PREFIX, detect_command
+from llm import GOOGLE_TOOLS, TOOLS, LLMError, ask_llm
+from router import CLAUDE_CODE_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, detect_command, detect_google
 
 
 # Mensagens anteriores enviadas à IA. Mais contexto custa mais tokens.
@@ -10,15 +12,16 @@ HISTORY_LIMIT = 6
 def reply_to(text, history):
     """Responde a uma mensagem do chat e executa a ação no próprio notebook.
 
-    Retorna (resposta, tarefa). A tarefa é o pedido para o Claude Code, que
-    demora e deve rodar em segundo plano, ou None.
+    Retorna (resposta, tarefa). A tarefa é uma função sem argumentos que demora
+    (Claude Code, Google) e deve rodar em segundo plano; ela devolve o texto
+    para mostrar no chat. É None quando não há nada a esperar.
     """
 
-    match = detect_command(text)
+    match = detect_command(text) or detect_google(text)
 
     if not match:
         try:
-            answer, command = ask_llm(text, "desktop", history[-HISTORY_LIMIT:])
+            answer, command = ask_llm(text, "desktop", history[-HISTORY_LIMIT:], TOOLS + GOOGLE_TOOLS)
 
         except LLMError as error:
             print("ERRO NA IA:", repr(error))
@@ -32,7 +35,15 @@ def reply_to(text, history):
     command, answer = match
 
     if command.startswith(CLAUDE_CODE_PREFIX):
-        return answer, command[len(CLAUDE_CODE_PREFIX):]
+        task = command[len(CLAUDE_CODE_PREFIX):]
+        return answer, lambda: run_task(task)
+
+    if command.startswith(GOOGLE_AGENDA_PREFIX):
+        days = int(command[len(GOOGLE_AGENDA_PREFIX):])
+        return answer, lambda: run_google(google_data.agenda_summary, days)
+
+    if command == GOOGLE_CLASSROOM:
+        return answer, lambda: run_google(google_data.classroom_summary)
 
     try:
         run_action(command)
@@ -52,3 +63,12 @@ def run_task(task):
         return f"Claude Code terminou: {result}"
 
     return f"O Claude Code falhou: {result}"
+
+
+def run_google(function, *args):
+    try:
+        return function(*args)
+
+    except Exception as error:
+        print("ERRO NO GOOGLE:", repr(error))
+        return f"Desculpe, senhor. Não consegui consultar o Google: {error}"

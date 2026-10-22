@@ -10,7 +10,7 @@ import pystray
 
 from PIL import Image, ImageDraw
 
-from desktop.core import reply_to, run_task
+from desktop.core import reply_to
 
 
 HOTKEY = os.getenv("JARVIS_HOTKEY", "ctrl+alt+j")
@@ -68,7 +68,7 @@ class ChatWindow:
         events.put(("reply", text, answer))
 
         if task:
-            events.put(("note", run_task(task)))
+            events.put(("note", task()))
 
     def show(self):
         self.root.deiconify()
@@ -96,6 +96,8 @@ class ChatWindow:
 
             elif event[0] == "note":
                 self.write("JARVIS", event[1])
+                # Guarda o resultado para a IA poder responder perguntas sobre ele depois.
+                self.history.append({"role": "assistant", "content": event[1]})
 
             elif event[0] == "toggle":
                 self.toggle()

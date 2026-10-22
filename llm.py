@@ -57,14 +57,30 @@ TOOLS = [tool(item["tool"], item["description"]) for item in COMMANDS] + [
 ]
 
 
+# Só a janela de chat do notebook oferece estas, porque o login do Google fica nele.
+GOOGLE_TOOLS = [
+    tool(
+        "ver_agenda",
+        "Lista os compromissos da Google Agenda do usuário a partir de hoje.",
+        {"dias": {"type": "integer", "description": "Quantos dias olhar, de 1 (só hoje) a 7."}},
+        ["dias"]
+    ),
+    tool(
+        "ver_tarefas_classroom",
+        "Lista as atividades pendentes do usuário no Google Classroom."
+    )
+]
+
+
 class LLMError(Exception):
     pass
 
 
-def ask_llm(question, source, history=None):
+def ask_llm(question, source, history=None, tools=None):
     """Retorna (resposta falada, comando). O comando é None quando a IA só respondeu.
 
     history: mensagens anteriores da conversa, no formato {"role", "content"}.
+    tools: ferramentas oferecidas à IA; o padrão é TOOLS.
     """
     api_key = os.getenv("DEEPSEEK_API_KEY")
 
@@ -82,7 +98,7 @@ def ask_llm(question, source, history=None):
                     *(history or []),
                     {"role": "user", "content": question}
                 ],
-                "tools": TOOLS,
+                "tools": tools or TOOLS,
                 "max_tokens": MAX_TOKENS
             },
             timeout=TIMEOUT_SECONDS

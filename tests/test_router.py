@@ -1,6 +1,6 @@
 import pytest
 
-from router import detect_command, is_allowed_command
+from router import command_for_tool, detect_command, detect_google, is_allowed_command
 
 
 @pytest.mark.parametrize("question, command", [
@@ -46,3 +46,24 @@ def test_detects_claude_code_tasks(question, task):
 ])
 def test_is_allowed_command(command, allowed):
     assert is_allowed_command(command) is allowed
+
+
+@pytest.mark.parametrize("question, command", [
+    ("o que tenho hoje?", "google_agenda:1"),
+    ("tenho algum compromisso amanhã", "google_agenda:2"),
+    ("minha agenda da semana", "google_agenda:7"),
+    ("quais as tarefas pendentes", "google_classroom"),
+    ("o que tem no Classroom", "google_classroom"),
+])
+def test_detects_google_requests(question, command):
+    assert detect_google(question)[0] == command
+
+
+@pytest.mark.parametrize("question", ["crie tarefas no código", "abra o bloco de notas"])
+def test_ignores_non_google_requests(question):
+    assert detect_google(question) is None
+
+
+def test_agenda_tool_clamps_days():
+    assert command_for_tool("ver_agenda", {"dias": 30})[0] == "google_agenda:7"
+    assert command_for_tool("ver_agenda", {"dias": 0})[0] == "google_agenda:1"
