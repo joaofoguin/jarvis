@@ -438,6 +438,17 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - As notícias vêm do RSS público do Google Notícias, sem chave, nos temas de `news_topics`. Os temas são editados em Preferências > Notícias, com até 10 temas. Clicar numa notícia abre o navegador padrão; só links `https://` são abertos.
 - O histórico fica em `~/.jarvis/historico.jsonl` (o pedido e o começo da resposta), fora do Git.
 
+### Atualização de 22/10/2026: orbe redondo, Classroom filtrado e avisos do mural
+
+- A transparência do WebView2 deixava um quadrado cinza, e a cor-chave (`TransparencyKey`) fazia a janela parar de receber cliques. Agora a janela do orbe é recortada num círculo (`SetWindowRgn`, em `make_round`), com fundo escuro e um aro fino, e os cliques voltam a funcionar.
+- O Classroom do painel em tela cheia mostra só as atividades pendentes criadas nos últimos 30 dias (`classroom_summary(..., since=...)`), nas contas marcadas em Preferências > Classroom (`classroom_accounts`; sem nenhuma marcada, valem todas).
+- **Avisos do mural** (`desktop/notices.py`):
+  - Pedem um login a mais, só de leitura (`classroom.announcements.readonly`, token `_mural`), feito pelo botão "Conectar avisos do mural" nas preferências.
+  - A cada 5 minutos o app consulta os avisos das contas escolhidas.
+  - Cada aviso novo vira uma notificação do Windows e uma mensagem no chat.
+  - Na primeira consulta de uma turma, os avisos que já existiam só são marcados como vistos (em `~/.jarvis/avisos_vistos.json`), sem notificar.
+- As notícias aparecem em blocos, como no Iniciar do Windows 10: o primeiro grande, alguns largos e cada tema com um tom da cor escolhida.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados

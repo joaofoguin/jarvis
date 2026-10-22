@@ -3,9 +3,10 @@
 Cada um devolve {"ok": dados} ou {"error": mensagem}, para o painel mostrar o problema sem travar.
 """
 
+import google_data
 import memory
 
-from desktop import settings, skills, usage, voice
+from desktop import dashboard, notices, settings, skills, usage, voice
 
 
 PREVIEW_TEXT = "Às suas ordens, senhor."
@@ -37,7 +38,9 @@ class Panel:
             "preferences": settings.load(),
             "voices": settings.VOICES,
             "skills": skills.installed(),
-            "memory": memory_items()
+            "memory": memory_items(),
+            "google_accounts": [account for account in google_data.accounts() if account],
+            "notices_connected": all(notices.connected(account) for account in dashboard.classroom_accounts())
         }
 
     def load_usage(self):
@@ -64,6 +67,10 @@ class Panel:
             voice.play(voice.synthesize(PREVIEW_TEXT, name, rate))
 
         return result(preview)
+
+    def connect_notices(self):
+        # Abre o navegador para o login do mural nas contas escolhidas; só acontece quando você pede.
+        return result(lambda: notices.connect(dashboard.classroom_accounts()))
 
     def add_skill_repo(self, url):
         def add():

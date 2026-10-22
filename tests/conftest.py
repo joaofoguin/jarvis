@@ -14,3 +14,4 @@ def isolated_memory(monkeypatch, tmp_path):
     monkeypatch.setenv("JARVIS_SETTINGS", str(tmp_path / "preferencias.json"))
     monkeypatch.setenv("JARVIS_SKILLS", str(tmp_path / "skills"))
     monkeypatch.setenv("JARVIS_HISTORY", str(tmp_path / "historico.jsonl"))
+    monkeypatch.setenv("JARVIS_NOTICES", str(tmp_path / "avisos_vistos.json"))

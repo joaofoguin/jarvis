@@ -6,7 +6,7 @@ Cada parte é carregada separadamente, para uma lenta ou com erro não segurar a
 import json
 import os
 import xml.etree.ElementTree as ET
-from datetime import date
+from datetime import date, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import quote
@@ -19,6 +19,9 @@ from desktop import core, settings, usage
 
 NEWS_PER_TOPIC = 4
 NEWS_TIMEOUT = 10
+
+# O Classroom do painel mostra só o que foi passado nesse período.
+CLASSROOM_DAYS = 30
 
 HISTORY_SHOWN = 8
 
@@ -49,9 +52,15 @@ def history():
     return [json.loads(line) for line in reversed(lines)]
 
 
-def google_ready():
+def google_ready(accounts=None):
     # Só consulta o Google se o login já foi feito; o painel nunca abre o navegador sozinho.
-    return all(os.path.exists(google_data.token_file(account)) for account in google_data.accounts())
+    return all(os.path.exists(google_data.token_file(account)) for account in accounts or google_data.accounts())
+
+
+def classroom_accounts():
+    """As contas escolhidas nas preferências; sem escolha, todas."""
+
+    return settings.load()["classroom_accounts"] or google_data.accounts()
 
 
 def agenda():
@@ -62,10 +71,15 @@ def agenda():
 
 
 def classroom():
-    if not google_ready():
+    accounts = classroom_accounts()
+
+    if not google_ready(accounts):
         return "Peça \"minhas tarefas do Classroom\" no chat uma vez para entrar no Google."
 
-    return core.run_google(google_data.classroom_summary, None, "")
+    since = datetime.now().astimezone() - timedelta(days=CLASSROOM_DAYS)
+    return core.run_google(
+        lambda: google_data.classroom_summary(google_data.services("classroom", "v1", only=accounts), "", since)
+    )
 
 
 def news_url(topic):

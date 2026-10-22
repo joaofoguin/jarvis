@@ -6,6 +6,8 @@ Clique no orbe para falar; com o botão direito, o chat abre e fecha. O orbe pod
 
 import json
 import os
+import threading
+import time
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +18,7 @@ import webview
 
 from PIL import Image, ImageDraw
 
-from desktop import dashboard, settings
+from desktop import dashboard, notices, settings
 from desktop.core import reply_to
 from desktop.panel import Panel
 from desktop.voice import Voice
@@ -31,8 +33,8 @@ ORB_SIZE = 160
 # Distância do orbe até o canto inferior direito da tela.
 ORB_MARGIN = 40
 
-# Cor que o Windows deixa invisível atrás do orbe. Quase preta, para as bordas do brilho não destoarem.
-TRANSPARENT_KEY = (1, 2, 3)
+# De quanto em quanto tempo o mural do Classroom é consultado, em segundos.
+NOTICES_INTERVAL = 300
 
 
 def make_icon_image():
@@ -41,20 +43,39 @@ def make_icon_image():
     return image
 
 
-def clear_background(window):
-    """Tira o fundo cinza que o Windows pinta atrás de uma janela transparente do WebView2."""
+def make_round(window):
+    """Recorta a janela do orbe num círculo.
+
+    A transparência do WebView2 no Windows deixa um quadrado cinza e, com cor-chave, a janela para
+    de receber cliques. Recortar a própria janela não tem nenhum dos dois problemas.
+    """
+
+    from ctypes import windll
 
     from System import Func, Type
-    from System.Drawing import Color
 
     form = window.native
-    key = Color.FromArgb(*TRANSPARENT_KEY)
 
     def apply():
-        form.BackColor = key
-        form.TransparencyKey = key
+        region = windll.gdi32.CreateEllipticRgn(0, 0, form.Width + 1, form.Height + 1)
+        windll.user32.SetWindowRgn(form.Handle.ToInt32(), region, True)
 
     form.Invoke(Func[Type](apply))
+
+
+def watch_notices(jarvis, icon):
+    """Avisa, no chat e com uma notificação do Windows, cada aviso novo no mural do Classroom."""
+
+    while not jarvis.quitting:
+        try:
+            for course, text in notices.check(dashboard.classroom_accounts()):
+                icon.notify(text, f"Classroom: {course}")
+                jarvis.write("jarvis", f"Novo aviso em {course}: {text}")
+
+        except Exception as error:
+            print("ERRO NOS AVISOS DO CLASSROOM:", repr(error))
+
+        time.sleep(NOTICES_INTERVAL)
 
 
 def call_js(window, function, *args):
@@ -186,10 +207,10 @@ def main():
         x=screen.width - ORB_SIZE - ORB_MARGIN,
         y=screen.height - ORB_SIZE - ORB_MARGIN * 2,
         frameless=True,
-        transparent=True,
         on_top=True,
         resizable=False,
-        shadow=False
+        shadow=False,
+        background_color="#070B12"
     )
     # Sem a barra do Windows: cada tela tem os próprios botões e é arrastada pelo topo.
     chat = webview.create_window(
@@ -210,9 +231,10 @@ def main():
     )
     panel_window.expose(
         panel.load_panel, panel.load_usage, panel.save_preferences, panel.preview_voice,
-        panel.add_skill_repo, panel.remove_skill_repo, panel.forget_memory, panel.hide_panel
+        panel.add_skill_repo, panel.remove_skill_repo, panel.forget_memory, panel.hide_panel,
+        panel.connect_notices
     )
-    orb.events.loaded += lambda: clear_background(orb)
+    orb.events.loaded += lambda: make_round(orb)
     chat.events.closing += jarvis.closing
     panel_window.events.closing += panel.closing
 
@@ -235,6 +257,7 @@ def main():
         )
     )
     icon.run_detached()
+    threading.Thread(target=watch_notices, args=(jarvis, icon), daemon=True).start()
 
     keyboard.add_hotkey(HOTKEY, jarvis.toggle_chat)
 

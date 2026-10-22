@@ -9,7 +9,7 @@
 - As rotas da fila exigem `AGENT_TOKEN`. O agente fecha cada comando como `completed`, `failed` ou `rejected`.
 - Ações que a IA pode escolher ficam em `TOOLS` (`llm.py`) e viram comandos por `command_for_tool` (`router.py`). Tarefas `claude_code:` rodam só dentro de `JARVIS_WORKSPACE`, sem Bash.
 - A janela de chat (`desktop/`) reusa `router.py`, `llm.py` e as ações de `agent/agent.py`. Não duplique essa lógica.
-- Google (Agenda, Classroom e YouTube) é só leitura e só no notebook (`google_data.py`). Nunca versione `credentials.json` nem `google_token*.json`.
+- Google (Agenda, Classroom, mural do Classroom e YouTube) é só leitura e só no notebook (`google_data.py`, `desktop/notices.py`). Telas automáticas nunca abrem o login do Google sozinhas. Nunca versione `credentials.json` nem `google_token*.json`.
 - Contatos e calendário do iPhone vêm do iCloud (`icloud_data.py`), só leitura e só no notebook, com senha de app em `ICLOUD_APP_PASSWORD`.
 - WhatsApp (app do Windows, `whatsapp_app.py`) e Instagram (navegador, `browser.py`) rodam só no notebook, como ações fixas. Enviar mensagem sempre pede um "sim" antes, e o Enter só vai para a janela do WhatsApp.
 - A voz (`desktop/voice.py`) detecta "Hey Jarvis" no notebook e só depois manda o áudio para o reconhecimento. As preferências ficam em `~/.jarvis/preferencias.json` (`desktop/settings.py`).

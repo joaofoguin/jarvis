@@ -5,7 +5,13 @@
 <title>JARVIS</title>
 <style>
   :root { --accent: #3FD4F5; }
-  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; }
+  /* A janela é recortada num círculo; o fundo escuro com um aro fino vira a moldura do orbe. */
+  html, body { margin: 0; height: 100%; background: #070B12; overflow: hidden; user-select: none; }
+  body::before {
+    content: ""; position: fixed; inset: 1px; border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    background: radial-gradient(circle, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 70%);
+  }
   body { display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
   .orb { position: relative; width: 150px; height: 150px; display: flex; align-items: center; justify-content: center; }

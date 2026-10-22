@@ -90,14 +90,14 @@ def get_credentials(account, scopes=SCOPES, kind=""):
     return creds
 
 
-def services(name, version, request=""):
-    """Retorna [(conta, serviço)] para cada conta. Se o login de uma conta falhar, o serviço é o erro."""
+def services(name, version, request="", only=None):
+    """Retorna [(conta, serviço)] para cada conta (ou só as de `only`). Se o login falhar, o serviço é o erro."""
 
     from googleapiclient.discovery import build
 
     result = []
 
-    for account in accounts(request):
+    for account in only or accounts(request):
         try:
             result.append((account, build(name, version, credentials=get_credentials(account), cache_discovery=False)))
 
@@ -185,7 +185,9 @@ def format_event(item):
     return f"{event_start(item):%d/%m} (dia todo) {title}"
 
 
-def classroom_summary(account_services=None, request=""):
+def classroom_summary(account_services=None, request="", since=None):
+    """Atividades pendentes; com `since`, só as criadas a partir dessa data."""
+
     account_services = account_services or services("classroom", "v1", request)
     many = len(account_services) > 1
 
@@ -200,7 +202,7 @@ def classroom_summary(account_services=None, request=""):
         try:
             pending += [
                 (due, course + label(account, many), title)
-                for due, course, title in pending_work(service)
+                for due, course, title in pending_work(service, since)
             ]
 
         except Exception as error:
@@ -222,7 +224,7 @@ def classroom_summary(account_services=None, request=""):
     return "\n".join(lines + errors)
 
 
-def pending_work(service):
+def pending_work(service, since=None):
     """Retorna [(prazo, turma, título)] das atividades pendentes de uma conta."""
 
     courses = service.courses().list(studentId="me", courseStates=["ACTIVE"]).execute().get("courses", [])
@@ -244,10 +246,14 @@ def pending_work(service):
         work = service.courses().courseWork().list(courseId=course["id"]).execute().get("courseWork", [])
 
         for item in work:
-            if item["id"] in pending_ids:
+            if item["id"] in pending_ids and (not since or created_at(item) >= since):
                 pending.append((due_date(item), course["name"], item.get("title", "(sem título)")))
 
     return pending
+
+
+def created_at(item):
+    return datetime.fromisoformat(item.get("creationTime", "1970-01-01T00:00:00Z").replace("Z", "+00:00"))
 
 
 def due_date(item):
