@@ -139,21 +139,34 @@ def test_youtube_report_saved_as_pdf_when_asked(actions, monkeypatch, tmp_path):
 def sent(monkeypatch):
     messages = []
     monkeypatch.setattr(core, "pending_message", None)
-    monkeypatch.setattr(core.browser, "whatsapp_send", lambda contact, text: messages.append((contact, text)) or "enviada")
-    monkeypatch.setenv("WHATSAPP_APELIDOS", "namorada:Amor")
+    monkeypatch.setattr(core.whatsapp_app, "send", lambda phone, text: messages.append((phone, text)) or "enviada")
+    monkeypatch.setattr(core.icloud_data, "address_cards", lambda: [
+        "BEGIN:VCARD\r\nFN:Amor❤️🥵\r\nTEL:+5514996872005\r\nEND:VCARD",
+        "BEGIN:VCARD\r\nFN:Julya Namorada Jow\r\nTEL:(14) 99635-4039\r\nEND:VCARD",
+    ])
+    core.memory.remember("minha namorada é a Amor")
     return messages
 
 
 def test_whatsapp_message_waits_for_confirmation(actions, sent):
     answer, task = core.reply_to("mande mensagem para minha namorada no whatsapp dizendo Oi amor, já estou em casa", [])
 
-    assert answer == 'Enviar "Oi amor, já estou em casa" para Amor no WhatsApp? Responda "sim" para confirmar.'
+    assert answer == (
+        'Enviar "Oi amor, já estou em casa" para Amor❤️🥵 (+5514996872005) no WhatsApp? Responda "sim" para confirmar.'
+    )
     assert task is None and sent == []
 
     answer, task = core.reply_to("Sim", [])
 
     assert task() == "enviada"
-    assert sent == [("Amor", "Oi amor, já estou em casa")]
+    assert sent == [("5514996872005", "Oi amor, já estou em casa")]
+
+
+def test_whatsapp_unknown_contact_is_not_queued(actions, sent):
+    answer, task = core.reply_to("manda pro Zé no zap: oi", [])
+
+    assert answer == "Desculpe, senhor. Não consegui achar o número: não encontrei Zé com telefone nos seus contatos do iCloud"
+    assert core.pending_message is None
 
 
 def test_whatsapp_message_cancelled(actions, sent):
