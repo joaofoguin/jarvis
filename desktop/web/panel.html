@@ -58,7 +58,7 @@
   .switch[aria-pressed="true"] { background: var(--accent); justify-content: flex-end; }
 
   input[type="range"] { accent-color: var(--accent); width: 100%; }
-  input[type="url"] { flex: 1 1 220px; min-height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--text); padding: 0 12px; }
+  input[type="url"], input[type="text"] { flex: 1 1 220px; min-height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--text); padding: 0 12px; }
   input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .primary { min-height: 44px; padding: 0 18px; border-radius: 10px; border: none; background: var(--accent); color: #04111A; font-weight: 600; }
   .ghost { min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); }
@@ -72,7 +72,7 @@
 </head>
 <body>
 <div class="page">
-  <div class="top">
+  <div class="top pywebview-drag-region">
     <div class="brand">
       <div class="dot" aria-hidden="true"></div>
       <div>
@@ -80,7 +80,10 @@
         <h1>Preferências</h1>
       </div>
     </div>
-    <button type="button" class="primary" id="save">Salvar</button>
+    <div style="display: flex; gap: 8px">
+      <button type="button" class="primary" id="save">Salvar</button>
+      <button type="button" class="remove" id="close" aria-label="Fechar">✕</button>
+    </div>
   </div>
   <div id="status" role="status"></div>
 
@@ -133,6 +136,17 @@
         <div><div>Responder falando</div><div class="muted">Lê em voz alta as respostas às perguntas feitas por voz</div></div>
         <button type="button" class="switch" id="speak_replies" aria-label="Responder falando"></button>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>Notícias</h2>
+      <span class="muted">Temas que aparecem no chat em tela cheia. Salve para aplicar.</span>
+      <div class="list" id="topics"></div>
+      <form id="topic-form" style="display: flex; flex-wrap: wrap; gap: 8px">
+        <label for="topic" class="sr">Novo tema</label>
+        <input id="topic" type="text" maxlength="60" placeholder="Ex.: Corinthians, vagas de TI, Bauru" required>
+        <button type="submit" class="ghost">Incluir</button>
+      </form>
     </section>
 
     <section class="card">
@@ -201,6 +215,14 @@
     for (const key of ["wake_word", "speak_replies"]) {
       $(key).setAttribute("aria-pressed", String(preferences[key]));
     }
+
+    $("topics").replaceChildren(...preferences.news_topics.map((topic) => element("div", { className: "item" }, [
+      element("span", { textContent: topic }),
+      removeButton(`Tirar ${topic}`, () => {
+        preferences.news_topics = preferences.news_topics.filter((other) => other !== topic);
+        renderPreferences();
+      })
+    ])));
   }
 
   function renderUsage(usage) {
@@ -287,6 +309,21 @@
       status("Preferências salvas.");
     });
   };
+
+  $("topic-form").onsubmit = (event) => {
+    event.preventDefault();
+    const topic = $("topic").value.trim();
+
+    if (topic && !preferences.news_topics.includes(topic)) {
+      preferences.news_topics = [...preferences.news_topics, topic];
+      renderPreferences();
+      status("Tema incluído. Clique em Salvar para aplicar.");
+    }
+
+    $("topic").value = "";
+  };
+
+  $("close").onclick = () => api().hide_panel();
 
   $("skill-form").onsubmit = async (event) => {
     event.preventDefault();

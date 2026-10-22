@@ -429,6 +429,15 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - **Memória:** lista os itens de cada assunto e permite apagar um item.
 - As preferências são validadas antes de gravar (voz da lista, velocidade de -50% a +50%, cor em `#RRGGBB`).
 
+### Atualização de 22/10/2026: tela cheia, notícias e janelas sem barra
+
+- O orbe tira o fundo cinza que o Windows pintava atrás da janela transparente (`clear_background` em `desktop/app.py`, com uma cor-chave quase preta).
+- O chat e o painel não têm mais a barra do Windows. Cada um tem os próprios botões (preferências, tela cheia, esconder) e é arrastado pelo topo.
+- Em tela cheia (ou com a janela larga), o chat fica à esquerda e um painel do dia aparece à direita (`desktop/dashboard.py`). Ele mostra hora e data, agenda de hoje (Google e iCloud), tarefas do Classroom, notícias, histórico dos últimos pedidos e o uso de IA de hoje. Cada parte carrega sozinha e se atualiza a cada 10 minutos.
+- O painel do dia só consulta o Google se o login já foi feito, para nunca abrir o navegador sozinho.
+- As notícias vêm do RSS público do Google Notícias, sem chave, nos temas de `news_topics`. Os temas são editados em Preferências > Notícias, com até 10 temas. Clicar numa notícia abre o navegador padrão; só links `https://` são abertos.
+- O histórico fica em `~/.jarvis/historico.jsonl` (o pedido e o começo da resposta), fora do Git.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados

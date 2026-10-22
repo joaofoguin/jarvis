@@ -5,94 +5,228 @@
 <title>JARVIS</title>
 <style>
   :root { --accent: #3FD4F5; --ground: #070B12; --panel: #0D1520; --line: #1B2A3A; --text: #E6F1FA; --muted: #8FA6BA; }
+  * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--ground); color: var(--text); font: 15px/1.5 "Segoe UI", Inter, system-ui, sans-serif; }
-  body { display: flex; flex-direction: column; }
+  button { font: inherit; cursor: pointer; }
 
-  header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  /* Janela pequena: só o chat. Tela cheia: chat à esquerda e o painel à direita. */
+  .app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid transparent; }
+  .hud { display: none; }
+
+  @media (min-width: 1000px) {
+    .app { grid-template-columns: minmax(380px, 460px) minmax(0, 1fr); }
+    .chat { border-right-color: var(--line); }
+    .hud { display: grid; }
+  }
+
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 18px; border-bottom: 1px solid var(--line); user-select: none; }
   .dot {
-    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
     background: radial-gradient(circle at 50% 45%, #fff 0%, var(--accent) 40%, var(--panel) 100%);
     box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 55%, transparent);
   }
-  .name { font: 600 13px/1 "Segoe UI", sans-serif; letter-spacing: 4px; color: var(--muted); }
-  #state { margin-left: auto; font-size: 13px; color: var(--muted); }
-  #settings { background: transparent; color: var(--muted); }
+  .name { font-weight: 600; font-size: 12px; letter-spacing: 4px; color: var(--muted); }
+  #state { margin-left: auto; font-size: 13px; color: var(--accent); }
+  .tools { display: flex; gap: 2px; }
+  .icon { width: 40px; height: 40px; border-radius: 10px; border: none; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+  .icon:hover { color: var(--text); background: var(--panel); }
 
   #log { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
-  .message { max-width: 85%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .message { max-width: 88%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .jarvis { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); }
   .user { align-self: flex-end; background: #13202E; }
 
   form { display: flex; gap: 8px; padding: 12px 18px 18px; }
   input {
-    flex: 1; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line);
+    flex: 1; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line);
     background: var(--panel); color: var(--text); font: inherit;
   }
-  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  button {
-    width: 44px; height: 44px; border-radius: 12px; border: none; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-  }
+  input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .round { width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; border: none; display: flex; align-items: center; justify-content: center; }
   #talk { background: transparent; border: 1px solid var(--accent); color: var(--text); }
   #send { background: var(--accent); color: #04111A; }
+
+  /* Painel lateral */
+  .hud {
+    overflow-y: auto; padding: 28px; gap: 18px; align-content: start;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    background: radial-gradient(1200px 600px at 100% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%);
+  }
+  .card { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: color-mix(in srgb, var(--panel) 80%, transparent); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .wide { grid-column: 1 / -1; }
+  .label { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .label::before { content: ""; width: 14px; height: 1px; background: var(--accent); }
+  .clock { font-size: 64px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: 2px; }
+  .date { color: var(--muted); font-size: 16px; }
+  .text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .list { display: flex; flex-direction: column; gap: 4px; }
+  .news {
+    text-align: left; border: none; border-radius: 10px; padding: 10px 12px; background: transparent; color: var(--text);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .news:hover { background: var(--panel); }
+  .entry { padding: 8px 0; border-bottom: 1px solid #16222F; font-size: 14px; }
+  .entry:last-child { border-bottom: none; }
+  .stats { display: flex; gap: 28px; flex-wrap: wrap; }
+  .stats b { display: block; font-size: 26px; font-weight: 400; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
-<header>
-  <div class="dot" aria-hidden="true"></div>
-  <span class="name">J.A.R.V.I.S.</span>
-  <span id="state" aria-live="polite"></span>
-  <button type="button" id="settings" aria-label="Preferências">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>
-  </button>
-</header>
+<div class="app">
+  <section class="chat">
+    <header class="pywebview-drag-region">
+      <div class="dot" aria-hidden="true"></div>
+      <span class="name">J.A.R.V.I.S.</span>
+      <span id="state" aria-live="polite"></span>
+      <div class="tools">
+        <button type="button" class="icon" id="settings" aria-label="Preferências">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>
+        </button>
+        <button type="button" class="icon" id="fullscreen" aria-label="Tela cheia">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>
+        </button>
+        <button type="button" class="icon" id="close" aria-label="Esconder">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+        </button>
+      </div>
+    </header>
 
-<main id="log" aria-live="polite"></main>
+    <main id="log" aria-live="polite"></main>
 
-<form id="form">
-  <label for="text" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Mensagem</label>
-  <input id="text" autocomplete="off" placeholder="Fale com o JARVIS">
-  <button type="button" id="talk" aria-label="Falar">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>
-  </button>
-  <button type="submit" id="send" aria-label="Enviar">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
-  </button>
-</form>
+    <form id="form">
+      <label for="text" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Mensagem</label>
+      <input id="text" autocomplete="off" placeholder="Fale com o JARVIS">
+      <button type="button" class="round" id="talk" aria-label="Falar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>
+      </button>
+      <button type="submit" class="round" id="send" aria-label="Enviar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+      </button>
+    </form>
+  </section>
+
+  <aside class="hud" aria-label="Painel do dia">
+    <div class="card wide">
+      <span class="label">Hoje</span>
+      <div class="clock" id="clock"></div>
+      <div class="date" id="date"></div>
+    </div>
+    <div class="card"><span class="label">Agenda</span><div class="text" id="agenda">Carregando…</div></div>
+    <div class="card"><span class="label">Classroom</span><div class="text" id="classroom">Carregando…</div></div>
+    <div class="card wide"><span class="label">Notícias</span><div class="list" id="news">Carregando…</div></div>
+    <div class="card"><span class="label">Histórico</span><div id="history">Carregando…</div></div>
+    <div class="card"><span class="label">Uso de IA hoje</span><div id="usage">Carregando…</div></div>
+  </aside>
+</div>
 
 <script>
   const STATES = { idle: "", listening: "ouvindo…", thinking: "pensando…", speaking: "falando…" };
+  const REFRESH_MINUTES = 10;
   const log = document.getElementById("log");
   const input = document.getElementById("text");
+  const wide = window.matchMedia("(min-width: 1000px)");
+  const $ = (id) => document.getElementById(id);
+  const api = () => window.pywebview.api;
+
+  function element(tag, props = {}, children = []) {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  }
 
   // Chamadas pelo Python. O texto entra como texto, nunca como HTML.
   function addMessage(author, text) {
-    const message = document.createElement("div");
-    message.className = `message ${author}`;
-    message.textContent = text;
-    log.appendChild(message);
+    log.appendChild(element("div", { className: `message ${author}`, textContent: text }));
     log.scrollTop = log.scrollHeight;
+
+    if (author === "jarvis" && wide.matches) loadSection("history");
   }
 
-  function setState(state) { document.getElementById("state").textContent = STATES[state] || ""; }
+  function setState(state) { $("state").textContent = STATES[state] || ""; }
   function setAccent(color) { document.documentElement.style.setProperty("--accent", color); }
   function focusInput() { input.focus(); }
 
-  document.getElementById("form").addEventListener("submit", (event) => {
+  // Tira o título ("Sua agenda hoje:"), que o cartão já mostra.
+  function withoutTitle(text) {
+    const lines = text.split("\n");
+    return lines.length > 1 && lines[0].endsWith(":") ? lines.slice(1).join("\n") : text;
+  }
+
+  function ago(iso) {
+    const minutes = Math.round((Date.now() - new Date(iso)) / 60000);
+    if (minutes < 60) return `há ${Math.max(minutes, 1)} min`;
+    if (minutes < 1440) return `há ${Math.round(minutes / 60)} h`;
+    return `há ${Math.round(minutes / 1440)} d`;
+  }
+
+  const RENDER = {
+    agenda: (text) => $("agenda").textContent = withoutTitle(text),
+    classroom: (text) => $("classroom").textContent = withoutTitle(text),
+    news: (items) => $("news").replaceChildren(...(items.length ? items.map((item) => {
+      const button = element("button", { type: "button", className: "news" }, [
+        element("span", { textContent: item.title }),
+        element("span", { className: "muted", textContent: [item.source, item.topic, item.when && ago(item.when)].filter(Boolean).join(" · ") })
+      ]);
+      button.onclick = () => api().open_link(item.link);
+      return button;
+    }) : [element("span", { className: "muted", textContent: "Escolha temas de notícias nas preferências." })])),
+    history: (entries) => $("history").replaceChildren(...(entries.length ? entries.map((entry) => element("div", { className: "entry" }, [
+      element("div", { textContent: entry.text }),
+      element("div", { className: "muted", textContent: `${entry.when.slice(11)} · ${entry.answer}` })
+    ])) : [element("span", { className: "muted", textContent: "Nada por aqui ainda." })])),
+    usage: (today) => $("usage").replaceChildren(element("div", { className: "stats" }, [
+      element("div", {}, [element("b", { textContent: today.tokens.toLocaleString("pt-BR") }), element("span", { className: "muted", textContent: "tokens" })]),
+      element("div", {}, [element("b", { textContent: today.calls }), element("span", { className: "muted", textContent: "perguntas" })]),
+      element("div", {}, [element("b", { textContent: `US$ ${today.cost.toFixed(2).replace(".", ",")}` }), element("span", { className: "muted", textContent: "estimado" })])
+    ]))
+  };
+
+  async function loadSection(name) {
+    const result = await api().load_section(name);
+
+    if (result.error) {
+      $(name).textContent = `Indisponível: ${result.error}`;
+    } else {
+      RENDER[name](result.ok);
+    }
+  }
+
+  function loadDashboard() {
+    if (wide.matches && window.pywebview) Object.keys(RENDER).forEach(loadSection);
+  }
+
+  function tick() {
+    const now = new Date();
+    $("clock").textContent = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const date = now.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    $("date").textContent = date.charAt(0).toUpperCase() + date.slice(1);
+  }
+
+  tick();
+  setInterval(tick, 1000);
+  setInterval(loadDashboard, REFRESH_MINUTES * 60000);
+  wide.addEventListener("change", loadDashboard);
+  window.addEventListener("pywebviewready", loadDashboard);
+
+  $("form").addEventListener("submit", (event) => {
     event.preventDefault();
     const text = input.value.trim();
 
     if (text) {
       input.value = "";
-      window.pywebview.api.send(text);
+      api().send(text);
     }
   });
 
-  document.getElementById("talk").addEventListener("click", () => window.pywebview.api.talk());
-  document.getElementById("settings").addEventListener("click", () => window.pywebview.api.open_panel());
+  $("talk").addEventListener("click", () => api().talk());
+  $("settings").addEventListener("click", () => api().open_panel());
+  $("fullscreen").addEventListener("click", () => api().toggle_fullscreen());
+  $("close").addEventListener("click", () => api().hide_chat());
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") window.pywebview.api.hide_chat();
+    if (event.key === "Escape") api().hide_chat();
   });
 </script>
 </body>

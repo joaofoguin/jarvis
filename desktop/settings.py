@@ -22,8 +22,13 @@ DEFAULTS = {
     # Lê em voz alta as respostas às perguntas feitas por voz.
     "speak_replies": True,
     # Cor do orbe e da janela.
-    "accent": "#3FD4F5"
+    "accent": "#3FD4F5",
+    # Temas das notícias do painel em tela cheia.
+    "news_topics": ["tecnologia", "inteligência artificial"]
 }
+
+MAX_TOPICS = 10
+MAX_TOPIC_LENGTH = 60
 
 
 def path():
@@ -59,6 +64,17 @@ def save(values):
         if not isinstance(preferences[key], bool):
             raise ValueError(f"{key} precisa ser verdadeiro ou falso")
 
+    topics = preferences["news_topics"]
+
+    if not isinstance(topics, list) or len(topics) > MAX_TOPICS:
+        raise ValueError(f"use até {MAX_TOPICS} temas de notícias")
+
+    topics = [" ".join(str(topic).split()) for topic in topics]
+
+    if any(not topic or len(topic) > MAX_TOPIC_LENGTH for topic in topics):
+        raise ValueError(f"cada tema de notícias precisa ter de 1 a {MAX_TOPIC_LENGTH} letras")
+
+    preferences["news_topics"] = list(dict.fromkeys(topics))
     preferences = {key: preferences[key] for key in DEFAULTS}
     path().parent.mkdir(parents=True, exist_ok=True)
     path().write_text(json.dumps(preferences, indent=2, ensure_ascii=False), encoding="utf-8")
