@@ -78,7 +78,7 @@ def test_run_task_reports_result(monkeypatch):
 
 def test_agenda_request_skips_ai_and_runs_in_background(actions, monkeypatch):
     monkeypatch.setattr(core, "ask_llm", lambda *args: pytest.fail("não deveria chamar a IA"))
-    monkeypatch.setattr(core.google_data, "agenda_summary", lambda days: f"agenda de {days} dias")
+    monkeypatch.setattr(core.google_data, "agenda_summary", lambda days, services, request: f"agenda de {days} dias")
 
     answer, task = core.reply_to("o que tenho amanhã?", [])
 
@@ -93,7 +93,7 @@ def test_ai_can_choose_classroom_tool(actions, monkeypatch):
         return "Um momento, senhor.", "google_classroom"
 
     monkeypatch.setattr(core, "ask_llm", ask)
-    monkeypatch.setattr(core.google_data, "classroom_summary", lambda: "nada pendente")
+    monkeypatch.setattr(core.google_data, "classroom_summary", lambda services, request: "nada pendente")
 
     answer, task = core.reply_to("tenho algo para entregar na faculdade?", [])
 
@@ -102,7 +102,7 @@ def test_ai_can_choose_classroom_tool(actions, monkeypatch):
 
 
 def test_google_errors_become_friendly_text(actions, monkeypatch):
-    def broken(days):
+    def broken(days, services, request):
         raise RuntimeError("Arquivo credentials.json não encontrado")
 
     monkeypatch.setattr(core.google_data, "agenda_summary", broken)
