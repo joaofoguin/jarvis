@@ -4,7 +4,10 @@ import psycopg
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from pydantic import BaseModel
-from google import genai
+
+from db import enqueue_agent_command
+from llm import DEEPSEEK_MODEL, LLMError, ask_llm
+from router import detect_command
 
 
 # ============================================================
@@ -12,16 +15,6 @@ from google import genai
 # ============================================================
 
 load_dotenv()
-
-api_key = os.getenv("GEMINI_API_KEY")
-
-if not api_key:
-    raise RuntimeError(
-        "GEMINI_API_KEY não encontrada no arquivo .env"
-    )
-
-
-client = genai.Client(api_key=api_key)
 
 app = FastAPI(title="JARVIS")
 
@@ -44,8 +37,37 @@ def home():
     return {
         "status": "online",
         "assistant": "JARVIS",
-        "engine": "Gemini 3.6 Flash"
+        "engine": f"DeepSeek ({DEEPSEEK_MODEL})"
     }
+
+
+# ============================================================
+# PROCESSAMENTO DE PERGUNTAS
+# ============================================================
+
+def handle_question(question, source):
+    """Comandos conhecidos vão direto para a fila; o resto vai para a IA."""
+
+    match = detect_command(question)
+
+    if match:
+        command, answer = match
+
+        try:
+            enqueue_agent_command(command)
+
+        except (psycopg.Error, RuntimeError) as error:
+            print("ERRO AO ENFILEIRAR COMANDO:", repr(error))
+            return "Desculpe, senhor. Não consegui enviar o comando ao computador."
+
+        return answer
+
+    try:
+        return ask_llm(question, source)
+
+    except LLMError as error:
+        print("ERRO NA IA:", repr(error))
+        return "Desculpe, senhor. Minha inteligência está indisponível no momento."
 
 
 # ============================================================
@@ -55,98 +77,8 @@ def home():
 @app.post("/jarvis")
 def jarvis(request: JarvisRequest):
 
-    system_instruction = """
-    Você é JARVIS, um assistente pessoal inteligente.
-
-    Você deve responder sempre em português do Brasil.
-
-    PERSONALIDADE:
-    - Educado
-    - Inteligente
-    - Objetivo
-    - Sofisticado
-    - Levemente formal
-    - Pode chamar o usuário de "senhor" quando apropriado.
-
-    VOZ:
-    - Suas respostas serão faladas pela Alexa.
-    - Não use Markdown.
-    - Não use emojis.
-    - Seja natural e relativamente conciso.
-
-    COMANDOS DO COMPUTADOR:
-
-    Quando o usuário pedir para abrir o Bloco de Notas,
-    responda EXATAMENTE:
-
-    open_app:notepad
-
-    Quando o usuário pedir para abrir o WhatsApp Web,
-    responda EXATAMENTE:
-
-    open_website:whatsapp
-
-    Não adicione nenhuma outra palavra.
-    Não explique.
-    Não use pontuação.
-
-    Por enquanto, essas são as únicas ações de computador disponíveis.
-    """
-
-    interaction = client.interactions.create(
-        model="gemini-3.6-flash",
-        system_instruction=system_instruction,
-        input=request.question
-    )
-
-    answer = interaction.output_text.strip()
-
-    if answer == "open_app:notepad":
-        database_url = os.getenv("POSTGRES_URL")
-
-        if not database_url:
-            raise RuntimeError("POSTGRES_URL não encontrada")
-
-        with psycopg.connect(database_url) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO agent_commands (command)
-                    VALUES (%s)
-                    """,
-                    ("open_app:notepad",)
-                )
-                conn.commit()
-
-        return {
-            "answer": "Abrindo o Bloco de Notas, senhor."
-        }
-
-
-    if answer == "open_website:whatsapp":
-        database_url = os.getenv("POSTGRES_URL")
-
-        if not database_url:
-            raise RuntimeError("POSTGRES_URL não encontrada")
-
-        with psycopg.connect(database_url) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO agent_commands (command)
-                    VALUES (%s)
-                    """,
-                    ("open_website:whatsapp",)
-                )
-                conn.commit()
-
-        return {
-            "answer": "Abrindo o WhatsApp Web, senhor."
-        }
-
-
     return {
-        "answer": answer
+        "answer": handle_question(request.question, "jarvis")
     }
 
 @app.post("/alexa")
@@ -246,78 +178,8 @@ def alexa(request: dict):
                         }
                     }
 
-                # ------------------------------------------------
-                # GEMINI
-                # ------------------------------------------------
+                answer = handle_question(question, "alexa")
 
-                system_instruction = """
-                Você é JARVIS, um assistente pessoal inteligente.
-
-                PERSONALIDADE:
-                - Educado
-                - Inteligente
-                - Objetivo
-                - Sofisticado
-                - Levemente formal
-                - Pode chamar o usuário de "senhor" quando apropriado.
-
-                IDIOMA:
-                - Responda sempre em português do Brasil.
-
-                VOZ:
-                - Sua resposta será falada pela Alexa.
-                - Não use Markdown.
-                - Não use emojis.
-                - Não use listas muito longas.
-                - Seja natural.
-                - Seja relativamente conciso.
-
-                COMANDOS DO COMPUTADOR:
-
-                Quando o usuário pedir para abrir o Bloco de Notas,
-                responda EXATAMENTE:
-
-                open_app:notepad
-
-                Quando o usuário pedir para abrir o WhatsApp Web,
-                responda EXATAMENTE:
-
-                open_website:whatsapp
-
-                Não adicione nenhuma outra palavra.
-                Não explique.
-                Não use pontuação.
-
-                Por enquanto, essas são as únicas ações de computador disponíveis.
-                """
-
-                interaction = client.interactions.create(
-                    model="gemini-3.6-flash",
-                    system_instruction=system_instruction,
-                    input=question
-                )
-
-                answer = interaction.output_text.strip()
-
-                if answer == "open_app:notepad":
-                    database_url = os.getenv("POSTGRES_URL")
-
-                    if not database_url:
-                        raise RuntimeError("POSTGRES_URL não encontrada")
-
-                    with psycopg.connect(database_url) as conn:
-                        with conn.cursor() as cur:
-                            cur.execute(
-                                """
-                                INSERT INTO agent_commands (command)
-                                VALUES (%s)
-                                """,
-                                ("open_app:notepad",)
-                            )
-
-                            conn.commit()
-
-                    answer = "Abrindo o Bloco de Notas, senhor."
                 # ------------------------------------------------
                 # RESPOSTA PARA ALEXA
                 # ------------------------------------------------

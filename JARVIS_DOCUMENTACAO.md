@@ -6,7 +6,7 @@
 
 ## 1. Objetivo
 
-O JARVIS é um assistente pessoal em português do Brasil, desenvolvido em Python, com integração entre Alexa, uma API hospedada na Vercel, Gemini, um banco PostgreSQL na Neon e um agente local no Windows.
+O JARVIS é um assistente pessoal em português do Brasil, desenvolvido em Python, com integração entre Alexa, uma API hospedada na Vercel, DeepSeek (antes Gemini), um banco PostgreSQL na Neon e um agente local no Windows.
 
 Objetivos futuros incluem controlar programas locais, abrir sites, automatizar tarefas no VS Code, criar e testar código e interagir com o WhatsApp Web. A execução local deve permanecer limitada a ações autorizadas, sem aceitar comandos arbitrários de terminal.
 
@@ -17,10 +17,10 @@ Objetivos futuros incluem controlar programas locais, abrir sites, automatizar t
 - **Projeto local:** `C:\Users\joaop\Documents\Code\JARVIS`
 - **Ambiente virtual:** `venv`
 - **Terminal utilizado:** PowerShell.
-- **Dependências principais:** FastAPI, Uvicorn, python-dotenv, google-genai, psycopg (com binários) e requests.
+- **Dependências principais:** FastAPI, Uvicorn, python-dotenv, psycopg (com binários) e requests.
 - **Hospedagem da API:** Vercel.
 - **Banco de dados:** Neon PostgreSQL.
-- **Modelo de IA configurado:** `gemini-3.6-flash`.
+- **Modelo de IA configurado:** DeepSeek (`deepseek-chat`, alterável pela variável `DEEPSEEK_MODEL`). O Gemini foi removido em 22/10/2026 por causa da cota gratuita (seção 12).
 - **Assistente de voz:** Alexa, skill em português do Brasil.
 
 Não armazene chaves de API, senhas, tokens ou strings de conexão neste documento nem no Git.
@@ -32,7 +32,9 @@ Alexa
   ↓
 Endpoint /alexa na API FastAPI hospedada na Vercel
   ↓
-Gemini (para solicitações encaminhadas à IA)
+Roteador local (router.py) → comandos conhecidos vão direto para a fila
+  ↓
+DeepSeek (llm.py, só para perguntas abertas; tokens registrados em ai_usage)
   ↓
 Neon PostgreSQL — fila agent_commands
   ↓
@@ -70,11 +72,11 @@ O `requirements.txt` conhecido contém:
 fastapi
 uvicorn
 python-dotenv
-google-genai
 psycopg[binary]
+requests
 ```
 
-O pacote `requests` também foi instalado e é usado pelo agente local. Verifique se ele está listado no `requirements.txt` atual; se não estiver, inclua-o para que novas instalações possam executar o agente.
+O `requests` é usado pela API (chamadas ao DeepSeek) e pelo agente local. Para rodar os testes, instale `requirements-dev.txt`.
 
 Instalação/atualização das dependências no PowerShell:
 
@@ -96,7 +98,7 @@ pip install -r requirements.txt
 O arquivo `.env` local precisa conter as variáveis necessárias ao processo executado no computador. Os nomes conhecidos são:
 
 ```dotenv
-GEMINI_API_KEY=COLOQUE_SUA_CHAVE_LOCAL
+DEEPSEEK_API_KEY=COLOQUE_SUA_CHAVE_LOCAL
 POSTGRES_URL=COLOQUE_SUA_STRING_DE_CONEXAO_NEON
 ```
 
@@ -161,7 +163,7 @@ A conclusão atualiza apenas registros que ainda estejam `pending`. Comandos nã
 | Método | Rota | Finalidade |
 |---|---|---|
 | `GET` | `/` | Informa que a API está online e identifica o assistente/engine. |
-| `POST` | `/jarvis` | Recebe uma pergunta direta e, no estado conhecido, chama o Gemini. |
+| `POST` | `/jarvis` | Recebe uma pergunta direta e, no estado conhecido, usa o roteador local e, se não for um comando, chama o DeepSeek. |
 | `POST` | `/alexa` | Recebe requisições da skill Alexa e devolve uma resposta no formato Alexa Skills Kit. |
 | `GET` | `/agent/status` | Retorna o estado do agente segundo a API. |
 | `POST` | `/agent/command` | Insere um comando na fila. |
@@ -301,6 +303,14 @@ O próximo passo recomendado é implementar funções reutilizáveis como `detec
 
 A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, senhor.”, mas a ação interna deve continuar sendo um comando fixo autorizado. Deve existir um tratamento de erro para falhas do Gemini, para que a API não devolva um traceback completo ao usuário.
 
+### Atualização de 22/10/2026: troca para DeepSeek
+
+- O Gemini foi removido. Perguntas abertas usam o DeepSeek pela API compatível com OpenAI (`llm.py`), com limite de 300 tokens de saída e timeout de 7 segundos (a Alexa desiste após cerca de 8).
+- O roteador determinístico (`router.py`) resolve Bloco de Notas e WhatsApp Web sem IA, em `/jarvis` e `/alexa`. O `/alexa` agora também enfileira o WhatsApp.
+- Falhas do DeepSeek ou do Neon devolvem uma frase amigável, sem traceback.
+- Cada chamada de IA registra tokens de entrada, de cache e de saída na tabela `ai_usage` (criar com `sql/ai_usage.sql`) e no log da Vercel (`[USO DE IA]`). Essa tabela é a base da análise de custos antes de contratar outras IAs.
+- Na Vercel, configure `DEEPSEEK_API_KEY` e, se quiser, remova `GEMINI_API_KEY`.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados
@@ -352,7 +362,7 @@ Não implemente tudo de uma vez. Primeiro faça o roteador determinístico e val
 - [ ] Abrir `C:\Users\joaop\Documents\Code\JARVIS` no VS Code.
 - [ ] Ativar o ambiente virtual.
 - [ ] Confirmar que `.env` existe localmente e está ignorado pelo Git.
-- [ ] Conferir se `GEMINI_API_KEY` e `POSTGRES_URL` estão configuradas sem exibir seus valores.
+- [ ] Conferir se `DEEPSEEK_API_KEY` e `POSTGRES_URL` estão configuradas sem exibir seus valores.
 - [ ] Revisar o `main.py` atual antes de substituir blocos de código.
 - [ ] Implementar reconhecimento local de comandos antes da chamada ao Gemini.
 - [ ] Testar localmente a abertura do Bloco de Notas e do WhatsApp Web.
