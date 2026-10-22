@@ -14,10 +14,7 @@ from pathlib import Path
 from router import normalize
 
 
-PROFILE = os.getenv("JARVIS_BROWSER_PROFILE", str(Path.home() / ".jarvis" / "navegador"))
-
-# O Edge já vem no Windows, então não é preciso baixar outro navegador.
-CHANNEL = os.getenv("JARVIS_BROWSER", "msedge") or None
+DEFAULT_PROFILE = str(Path.home() / ".jarvis" / "navegador")
 
 # Tempo para você escanear o QR code ou entrar no Instagram, em milissegundos.
 LOGIN_TIMEOUT = 120_000
@@ -38,8 +35,14 @@ lock = threading.Lock()
 def browser_page(url):
     from playwright.sync_api import sync_playwright
 
+    # Lido na hora de abrir, porque o .env só é carregado depois que este módulo é importado.
+    profile = os.getenv("JARVIS_BROWSER_PROFILE", DEFAULT_PROFILE)
+
+    # O Edge já vem no Windows, então não é preciso baixar outro navegador.
+    channel = os.getenv("JARVIS_BROWSER", "msedge") or None
+
     with lock, sync_playwright() as playwright:
-        context = playwright.chromium.launch_persistent_context(PROFILE, channel=CHANNEL, headless=False)
+        context = playwright.chromium.launch_persistent_context(profile, channel=channel, headless=False)
 
         try:
             page = context.pages[0] if context.pages else context.new_page()
