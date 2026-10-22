@@ -346,7 +346,8 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - Só funciona na janela de chat do notebook. A Vercel e a Alexa não têm o login do Google.
 - O roteador (`detect_google`) reconhece frases como "o que tenho hoje", "agenda da semana" e "tarefas pendentes" sem gastar tokens. A IA também pode escolher as ferramentas `ver_agenda` e `ver_tarefas_classroom`.
 - O resultado aparece direto no chat, sem uma segunda chamada à IA, e fica no histórico para perguntas seguintes.
-- Configuração: `credentials.json` (cliente OAuth do tipo "App para computador", criado no Google Cloud) fica na raiz do projeto. No primeiro uso, o navegador abre para o login, e o token fica salvo em `google_token.json`. Os dois arquivos estão no `.gitignore`.
+- Configuração: `credentials.json` (cliente OAuth do tipo "App para computador", criado no Google Cloud) fica na raiz do projeto. No primeiro uso, o navegador abre para o login, e o token fica salvo em `google_token.json`. Esses arquivos estão no `.gitignore`.
+- Várias contas: defina `GOOGLE_ACCOUNTS=email1,email2` no `.env`. Cada conta faz login uma vez (o navegador já abre com o e-mail sugerido) e ganha seu próprio `google_token_<email>.json`. A agenda e o Classroom juntam as contas e marcam cada linha com o e-mail. Se uma conta falhar, as outras continuam aparecendo.
 
 ## 13. Histórico de resultados e problemas
 

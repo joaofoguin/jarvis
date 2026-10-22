@@ -32,7 +32,7 @@ def test_agenda_formats_timed_and_all_day_events():
         {"summary": "Feriado", "start": {"date": "2026-10-23"}}
     ])
 
-    text = google_data.agenda_summary(2, service)
+    text = google_data.agenda_summary(2, [(None, service)])
 
     assert text.splitlines()[0] == "Sua agenda nos próximos 2 dias:"
     assert "Prova de Cálculo" in text
@@ -42,7 +42,7 @@ def test_agenda_formats_timed_and_all_day_events():
 
 
 def test_empty_agenda_today():
-    assert google_data.agenda_summary(1, FakeCalendar([])) == "Nenhum compromisso na sua agenda hoje, senhor."
+    assert google_data.agenda_summary(1, [(None, FakeCalendar([]))]) == "Nenhum compromisso na sua agenda hoje, senhor."
 
 
 class FakeClassroom:
@@ -92,7 +92,7 @@ def test_classroom_lists_only_pending_work_sorted_by_due_date():
         pending={"c1": ["w1"], "c2": ["w3", "w4"]}
     )
 
-    lines = google_data.classroom_summary(service).splitlines()
+    lines = google_data.classroom_summary([(None, service)]).splitlines()
 
     assert lines == [
         "Atividades pendentes no Classroom:",
@@ -105,9 +105,58 @@ def test_classroom_lists_only_pending_work_sorted_by_due_date():
 def test_classroom_without_pending_work():
     service = FakeClassroom(courses=[{"id": "c1", "name": "Cálculo"}], work={}, pending={})
 
-    assert google_data.classroom_summary(service) == "Nenhuma atividade pendente no Classroom, senhor."
+    assert google_data.classroom_summary([(None, service)]) == "Nenhuma atividade pendente no Classroom, senhor."
 
 
 def test_due_date():
     assert google_data.due_date({"dueDate": {"year": 2026, "month": 1, "day": 2}}) == datetime(2026, 1, 2)
     assert google_data.due_date({}) is None
+
+
+def test_agenda_merges_accounts_in_time_order():
+    personal = FakeCalendar([{"summary": "Academia", "start": {"dateTime": "2026-10-22T18:00:00-03:00"}}])
+    school = FakeCalendar([{"summary": "Aula", "start": {"dateTime": "2026-10-22T08:00:00-03:00"}}])
+
+    lines = google_data.agenda_summary(1, [("eu@gmail.com", personal), ("eu@uenp.edu.br", school)]).splitlines()
+
+    assert "Aula [eu@uenp.edu.br]" in lines[1]
+    assert "Academia [eu@gmail.com]" in lines[2]
+
+
+class BrokenCalendar:
+    def events(self):
+        raise RuntimeError("acesso bloqueado")
+
+
+def test_one_account_failing_does_not_hide_the_others():
+    ok = FakeCalendar([{"summary": "Aula", "start": {"dateTime": "2026-10-22T08:00:00-03:00"}}])
+
+    text = google_data.agenda_summary(1, [("a@gmail.com", ok), ("b@uenp.edu.br", BrokenCalendar())])
+
+    assert "Aula [a@gmail.com]" in text
+    assert "Não consegui ler a agenda de b@uenp.edu.br: acesso bloqueado" in text
+
+
+def test_classroom_labels_courses_by_account():
+    service = FakeClassroom(
+        courses=[{"id": "c1", "name": "Cálculo"}],
+        work={"c1": [{"id": "w1", "title": "Lista 3"}]},
+        pending={"c1": ["w1"]}
+    )
+    empty = FakeClassroom(courses=[], work={}, pending={})
+
+    text = google_data.classroom_summary([("eu@uenp.edu.br", service), ("eu@gmail.com", empty)])
+
+    assert "- Lista 3 (Cálculo [eu@uenp.edu.br], sem prazo)" in text
+
+
+def test_accounts_and_token_files(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ACCOUNTS", "eu@gmail.com, joao.lima@discente.uenp.edu.br")
+
+    assert google_data.accounts() == ["eu@gmail.com", "joao.lima@discente.uenp.edu.br"]
+    assert google_data.token_file("eu@gmail.com") == "google_token_eu_gmail_com.json"
+
+    monkeypatch.delenv("GOOGLE_ACCOUNTS")
+
+    assert google_data.accounts() == [None]
+    assert google_data.token_file(None) == "google_token.json"

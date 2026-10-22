@@ -4,4 +4,4 @@ __pycache__/
 .vercel
 .pytest_cache/
 credentials.json
-google_token.json
+google_token*.json
