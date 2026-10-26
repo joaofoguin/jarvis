@@ -43,16 +43,28 @@ def test_news_follows_saved_topics_without_repeats(monkeypatch):
     assert [item["title"] for item in items] == ["Chip mais rápido", "IA nova lançada"]
 
 
-def test_history_shows_latest_first_with_short_answers():
-    for n in range(dashboard.HISTORY_SHOWN + 2):
-        dashboard.log(datetime(2026, 10, 22, 9, n), f"pedido {n}", "x" * 500)
+def test_history_groups_requests_into_conversations():
+    dashboard.log(datetime(2026, 10, 22, 9, 0), "minha agenda", "x" * 500)
+    dashboard.log(datetime(2026, 10, 22, 9, 20), "e amanhã?", "Nada.")
+    dashboard.log(datetime(2026, 10, 22, 14, 0), "manda pro amor", "Enviada.")
 
-    entries = dashboard.history()
+    conversations = dashboard.history()
 
-    assert len(entries) == dashboard.HISTORY_SHOWN
-    assert entries[0]["text"] == f"pedido {dashboard.HISTORY_SHOWN + 1}"
-    assert entries[0]["when"] == f"2026-10-22T09:{dashboard.HISTORY_SHOWN + 1:02d}"
-    assert len(entries[0]["answer"]) == dashboard.HISTORY_ANSWER_LIMIT
+    assert [conversation["title"] for conversation in conversations] == ["manda pro amor", "minha agenda"]
+    older = conversations[1]
+    assert (older["start"], older["end"]) == ("2026-10-22T09:00", "2026-10-22T09:20")
+    assert [entry["text"] for entry in older["entries"]] == ["minha agenda", "e amanhã?"]
+    assert len(older["entries"][0]["answer"]) == dashboard.HISTORY_ANSWER_LIMIT
+
+
+def test_history_shows_only_the_latest_conversations():
+    for n in range(dashboard.CONVERSATIONS_SHOWN + 2):
+        dashboard.log(datetime(2026, 10, 22, n, 0), f"pedido {n}", "ok")
+
+    conversations = dashboard.history()
+
+    assert len(conversations) == dashboard.CONVERSATIONS_SHOWN
+    assert conversations[0]["title"] == f"pedido {dashboard.CONVERSATIONS_SHOWN + 1}"
 
 
 def test_agenda_never_opens_google_login_from_the_dashboard(monkeypatch):

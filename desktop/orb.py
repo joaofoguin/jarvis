@@ -26,6 +26,10 @@ BARS = 32
 # Clique só conta se o mouse andou menos que isso entre apertar e soltar; senão, foi arrastar.
 DRAG_PIXELS = 5
 
+# O X de fechar fica no canto de cima à direita, fora do disco, e só aparece com o mouse em cima.
+CLOSE_CENTER = .86
+CLOSE_RADIUS = .09
+
 # Opacidade do fundo do disco (0 a 255): baixa para não pesar sobre fundos claros.
 DISK_ALPHA = 12
 
@@ -90,8 +94,43 @@ def core(size, accent):
     return image
 
 
-def render(state, accent, seconds, size=SIZE):
-    """Um quadro do orbe (RGBA) para o estado da voz: idle, listening, thinking ou speaking."""
+def on_close_button(x, y, size):
+    """Se o ponto (em pixels da janela) cai no X de fechar."""
+
+    return math.hypot(x - size * CLOSE_CENTER, y - size * (1 - CLOSE_CENTER)) <= size * CLOSE_RADIUS
+
+
+@lru_cache(maxsize=4)
+def close_button(size, accent):
+    color = rgb(accent)
+    big = size * SUPERSAMPLE
+    layer = Image.new("RGBA", (big, big))
+    draw = ImageDraw.Draw(layer)
+    x, y, radius = big * CLOSE_CENTER, big * (1 - CLOSE_CENTER), big * CLOSE_RADIUS
+    draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=(7, 11, 18, 235), outline=(*color, 200), width=SUPERSAMPLE)
+    arm = radius * .45
+    for sign in (1, -1):
+        draw.line([x - arm, y - sign * arm, x + arm, y + sign * arm], fill=(*color, 255), width=2 * SUPERSAMPLE)
+    return layer.reduce(SUPERSAMPLE)
+
+
+def icon(accent, size=256):
+    """O orbe parado sobre um disco escuro, para o ícone perto do relógio e das janelas."""
+
+    # Desenhado grande e reduzido, para os anéis não sumirem nos tamanhos pequenos.
+    full = 256
+    image = Image.new("RGBA", (full, full))
+    ImageDraw.Draw(image).ellipse([full * .06, full * .06, full * .94, full * .94], fill=(7, 11, 18, 255))
+    image.alpha_composite(render("idle", accent, 0, full))
+    # Corta a margem em volta do disco, para o orbe ocupar o ícone todo.
+    return image.crop((round(full * .05), round(full * .05), round(full * .95), round(full * .95))).resize((size, size), Image.LANCZOS)
+
+
+def render(state, accent, seconds, size=SIZE, hover=False):
+    """Um quadro do orbe (RGBA) para o estado da voz: idle, listening, thinking ou speaking.
+
+    Com o mouse em cima (hover), mostra o X de fechar.
+    """
 
     color = rgb(accent)
     image = base(size, accent).copy()
@@ -139,6 +178,9 @@ def render(state, accent, seconds, size=SIZE):
     nucleus = core(round(size * .36 * 1.07), accent).resize((diameter, diameter), Image.LANCZOS)
     image.alpha_composite(nucleus, ((size - diameter) // 2, (size - diameter) // 2))
 
+    if hover:
+        image.alpha_composite(close_button(size, accent))
+
     return image
 
 
@@ -149,6 +191,8 @@ class Orb:
         self.accent = accent
         self.state = "idle"
         self.hwnd = None
+        self.visible = True
+        self.hover = False
 
     def set_state(self, state):
         self.state = state
@@ -156,9 +200,21 @@ class Orb:
     def set_accent(self, color):
         self.accent = color
 
-    def start(self, on_click, on_right_click, on_error):
+    def show(self):
+        self.visible = True
+        if self.hwnd:
+            win32().user32.ShowWindow(self.hwnd, SW_SHOWNOACTIVATE)
+
+    def hide(self):
+        self.visible = False
+        if self.hwnd:
+            win32().user32.ShowWindow(self.hwnd, SW_HIDE)
+
+    def start(self, on_click, on_right_click, on_error, on_close=None):
         self.on_click = on_click
         self.on_right_click = on_right_click
+        # Sem on_close, o X só esconde o orbe.
+        self.on_close = on_close or self.hide
         threading.Thread(target=self.run_safely, args=(on_error,), daemon=True).start()
 
     def destroy(self):
@@ -219,7 +275,8 @@ class Orb:
         self.started = time.monotonic()
         self.pressed = None
         self.draw()
-        user32.ShowWindow(self.hwnd, SW_SHOWNOACTIVATE)
+        if self.visible:
+            user32.ShowWindow(self.hwnd, SW_SHOWNOACTIVATE)
         user32.SetTimer(self.hwnd, 1, FRAME_MS, None)
 
         message = w.MSG()
@@ -231,8 +288,15 @@ class Orb:
         api = win32()
         ctypes, w = api.ctypes, api.wintypes
 
+        # O mouse em cima da janela mostra o X; a posição é lida a cada quadro, porque fora do disco
+        # (onde o X fica) a janela é transparente e não recebe os movimentos do mouse.
+        cursor, rect = w.POINT(), w.RECT()
+        api.user32.GetCursorPos(ctypes.byref(cursor))
+        api.user32.GetWindowRect(self.hwnd, ctypes.byref(rect))
+        self.hover = rect.left <= cursor.x < rect.right and rect.top <= cursor.y < rect.bottom
+
         # O Windows quer os pixels em BGRA com o alfa já multiplicado.
-        frame = render(self.state, self.accent, time.monotonic() - self.started, self.size)
+        frame = render(self.state, self.accent, time.monotonic() - self.started, self.size, self.hover)
         pixels = frame.convert("RGBa").tobytes("raw", "BGRa")
         ctypes.memmove(self.bits, pixels, len(pixels))
 
@@ -249,7 +313,9 @@ class Orb:
 
         try:
             if message == WM_TIMER:
-                self.draw()
+                # Escondido, o orbe não gasta tempo desenhando.
+                if self.visible:
+                    self.draw()
                 return 0
 
             if message == WM_LBUTTONDOWN:
@@ -272,13 +338,16 @@ class Orb:
                 return 0
 
             if message == WM_LBUTTONUP and self.pressed:
-                dragging = self.pressed[4]
+                x, y, _, _, dragging = self.pressed
                 self.pressed = None
                 user32.ReleaseCapture()
 
                 if not dragging:
+                    rect = w.RECT()
+                    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+                    pressed_close = on_close_button(x - rect.left, y - rect.top, self.size)
                     # Fora da thread da janela, para o orbe continuar animando.
-                    threading.Thread(target=self.on_click, daemon=True).start()
+                    threading.Thread(target=self.on_close if pressed_close else self.on_click, daemon=True).start()
                 return 0
 
             if message == WM_RBUTTONUP:
@@ -303,6 +372,7 @@ WS_EX_LAYERED = 0x80000
 WS_EX_TOPMOST = 0x8
 WS_EX_TOOLWINDOW = 0x80
 WS_EX_NOACTIVATE = 0x08000000
+SW_HIDE = 0
 SW_SHOWNOACTIVATE = 4
 SWP_NOSIZE = 0x1
 SWP_NOZORDER = 0x4

@@ -16,9 +16,7 @@ import keyboard
 import pystray
 import webview
 
-from PIL import Image, ImageDraw
-
-from desktop import dashboard, notices, settings
+from desktop import dashboard, notices, orb, settings
 from desktop.core import reply_to
 from desktop.orb import Orb
 from desktop.panel import Panel
@@ -33,10 +31,36 @@ WEB = Path(__file__).resolve().parent / "web"
 NOTICES_INTERVAL = 300
 
 
-def make_icon_image():
-    image = Image.new("RGB", (64, 64), (16, 92, 160))
-    ImageDraw.Draw(image).text((26, 22), "J", fill="white")
-    return image
+ICON_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (256, 256)]
+
+
+def icon_path():
+    return Path.home() / ".jarvis" / "jarvis.ico"
+
+
+def save_icon(accent):
+    """Grava o orbe como .ico, na cor escolhida, para as janelas e a barra de tarefas."""
+
+    path = icon_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    orb.icon(accent).save(path, sizes=ICON_SIZES)
+    return path
+
+
+def set_window_icon(window, path):
+    # As janelas do pywebview no Windows são formulários do WinForms; o ícone tem que ser trocado na
+    # thread delas. Sem isso, a barra de tarefas mostra o ícone do Python.
+    from System import Action
+    from System.Drawing import Icon
+
+    form = window.native
+    form.Invoke(Action(lambda: setattr(form, "Icon", Icon(str(path)))))
+
+
+def separate_from_python():
+    # Um id próprio faz o Windows agrupar as janelas como "JARVIS", com o nosso ícone, e não como Python.
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("JARVIS")
 
 
 def watch_notices(jarvis, icon):
@@ -70,6 +94,7 @@ class Jarvis:
         self.quitting = False
         self.history = []
         self.panel = None
+        self.icon = None
         self.voice = Voice(on_text=self.answer_aloud, on_state=self.show_state, preferences=preferences)
 
     def send(self, text):
@@ -119,10 +144,31 @@ class Jarvis:
         self.orb.set_accent(self.accent)
         call_js(self.chat, "setAccent", self.accent)
 
+        if self.icon:
+            self.icon.icon = orb.icon(self.accent, 64)
+            self.set_window_icons()
+
+    def set_window_icons(self):
+        try:
+            path = save_icon(self.accent)
+            for window in (self.chat, self.panel.window):
+                set_window_icon(window, path)
+
+        except Exception as error:
+            # Sem o ícone próprio, as janelas só ficam com o ícone do Python.
+            print("ERRO NO ÍCONE DAS JANELAS:", repr(error))
+
+    def toggle_orb(self):
+        if self.orb.visible:
+            self.orb.hide()
+        else:
+            self.orb.show()
+
     def start(self):
         # Roda numa thread própria assim que as janelas abrem.
         call_js(self.chat, "setAccent", self.accent)
-        self.orb.start(self.talk, self.toggle_chat, lambda error: self.write("jarvis", f"Orbe desligado: {error}"))
+        self.set_window_icons()
+        self.orb.start(self.talk, self.toggle_chat, lambda error: self.write("jarvis", f"Orbe desligado: {error}"), self.hide_orb)
 
         self.write("jarvis", f"Online, senhor. Diga \"Hey Jarvis\", clique no orbe ou use {HOTKEY} para o chat.")
 
@@ -132,6 +178,11 @@ class Jarvis:
         except Exception as error:
             # Sem microfone ou sem as bibliotecas de voz, o chat por texto continua funcionando.
             self.write("jarvis", f"Voz desligada: {error}")
+
+    def hide_orb(self):
+        self.orb.hide()
+        if self.icon:
+            self.icon.notify("O orbe foi fechado. Para trazê-lo de volta, use \"Mostrar ou esconder o orbe\" neste ícone.", "JARVIS")
 
     def answer_aloud(self, text):
         # Roda na thread da voz, que só volta a ouvir depois de responder.
@@ -173,6 +224,12 @@ class Jarvis:
 
 
 def main():
+    try:
+        separate_from_python()
+
+    except Exception as error:
+        print("ERRO NO ID DO APP:", repr(error))
+
     # Sem a barra do Windows: cada tela tem os próprios botões e é arrastada pelo topo.
     chat = webview.create_window(
         "JARVIS", str(WEB / "chat.html"), width=520, height=640, hidden=True,
@@ -205,13 +262,14 @@ def main():
         chat.destroy()
         panel_window.destroy()
 
-    icon = pystray.Icon(
+    icon = jarvis.icon = pystray.Icon(
         "jarvis",
-        make_icon_image(),
+        orb.icon(preferences["accent"], 64),
         "JARVIS",
         menu=pystray.Menu(
             pystray.MenuItem("Abrir chat", lambda: jarvis.show_chat(), default=True),
             pystray.MenuItem("Falar agora", lambda: jarvis.talk()),
+            pystray.MenuItem("Mostrar ou esconder o orbe", lambda: jarvis.toggle_orb()),
             pystray.MenuItem("Preferências", lambda: jarvis.open_panel()),
             pystray.MenuItem("Sair", quit_app)
         )
