@@ -347,39 +347,40 @@ def win32():
 
     # Cópias próprias das DLLs: os tipos definidos aqui não mexem nos de outras bibliotecas, e vice-versa.
     user32, gdi32, kernel32 = (ctypes.WinDLL(name, use_last_error=True) for name in ("user32", "gdi32", "kernel32"))
-    signatures = {
-        user32.DefWindowProcW: ([w.HWND, w.UINT, w.WPARAM, w.LPARAM], LRESULT),
-        user32.RegisterClassExW: ([ctypes.POINTER(WNDCLASSEXW)], w.ATOM),
-        user32.CreateWindowExW: ([w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+    # As funções do ctypes não servem de chave de dicionário, então a lista é de trios.
+    signatures = [
+        (user32.DefWindowProcW, [w.HWND, w.UINT, w.WPARAM, w.LPARAM], LRESULT),
+        (user32.RegisterClassExW, [ctypes.POINTER(WNDCLASSEXW)], w.ATOM),
+        (user32.CreateWindowExW, [w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                                   ctypes.c_int, w.HWND, w.HMENU, w.HINSTANCE, w.LPVOID], w.HWND),
-        user32.LoadCursorW: ([w.HINSTANCE, ctypes.c_void_p], w.HANDLE),
-        user32.GetDpiForWindow: ([w.HWND], w.UINT),
-        user32.SetThreadDpiAwarenessContext: ([w.HANDLE], w.HANDLE),
-        user32.SystemParametersInfoW: ([w.UINT, w.UINT, w.LPVOID, w.UINT], w.BOOL),
-        user32.SetWindowPos: ([w.HWND, w.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, w.UINT], w.BOOL),
-        user32.GetDC: ([w.HWND], w.HDC),
-        user32.ShowWindow: ([w.HWND, ctypes.c_int], w.BOOL),
-        user32.SetTimer: ([w.HWND, ctypes.c_size_t, w.UINT, w.LPVOID], ctypes.c_size_t),
-        user32.KillTimer: ([w.HWND, ctypes.c_size_t], w.BOOL),
-        user32.GetMessageW: ([ctypes.POINTER(w.MSG), w.HWND, w.UINT, w.UINT], w.BOOL),
-        user32.TranslateMessage: ([ctypes.POINTER(w.MSG)], w.BOOL),
-        user32.DispatchMessageW: ([ctypes.POINTER(w.MSG)], LRESULT),
-        user32.PostMessageW: ([w.HWND, w.UINT, w.WPARAM, w.LPARAM], w.BOOL),
-        user32.UpdateLayeredWindow: ([w.HWND, w.HDC, ctypes.POINTER(w.POINT), ctypes.POINTER(w.SIZE), w.HDC,
+        (user32.LoadCursorW, [w.HINSTANCE, ctypes.c_void_p], w.HANDLE),
+        (user32.GetDpiForWindow, [w.HWND], w.UINT),
+        (user32.SetThreadDpiAwarenessContext, [w.HANDLE], w.HANDLE),
+        (user32.SystemParametersInfoW, [w.UINT, w.UINT, w.LPVOID, w.UINT], w.BOOL),
+        (user32.SetWindowPos, [w.HWND, w.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, w.UINT], w.BOOL),
+        (user32.GetDC, [w.HWND], w.HDC),
+        (user32.ShowWindow, [w.HWND, ctypes.c_int], w.BOOL),
+        (user32.SetTimer, [w.HWND, ctypes.c_size_t, w.UINT, w.LPVOID], ctypes.c_size_t),
+        (user32.KillTimer, [w.HWND, ctypes.c_size_t], w.BOOL),
+        (user32.GetMessageW, [ctypes.POINTER(w.MSG), w.HWND, w.UINT, w.UINT], w.BOOL),
+        (user32.TranslateMessage, [ctypes.POINTER(w.MSG)], w.BOOL),
+        (user32.DispatchMessageW, [ctypes.POINTER(w.MSG)], LRESULT),
+        (user32.PostMessageW, [w.HWND, w.UINT, w.WPARAM, w.LPARAM], w.BOOL),
+        (user32.UpdateLayeredWindow, [w.HWND, w.HDC, ctypes.POINTER(w.POINT), ctypes.POINTER(w.SIZE), w.HDC,
                                       ctypes.POINTER(w.POINT), w.COLORREF, ctypes.POINTER(BLENDFUNCTION), w.DWORD], w.BOOL),
-        user32.GetCursorPos: ([ctypes.POINTER(w.POINT)], w.BOOL),
-        user32.GetWindowRect: ([w.HWND, ctypes.POINTER(w.RECT)], w.BOOL),
-        user32.SetCapture: ([w.HWND], w.HWND),
-        user32.ReleaseCapture: ([], w.BOOL),
-        user32.PostQuitMessage: ([ctypes.c_int], None),
-        gdi32.CreateCompatibleDC: ([w.HDC], w.HDC),
-        gdi32.CreateDIBSection: ([w.HDC, ctypes.POINTER(BITMAPINFOHEADER), w.UINT, ctypes.POINTER(ctypes.c_void_p),
+        (user32.GetCursorPos, [ctypes.POINTER(w.POINT)], w.BOOL),
+        (user32.GetWindowRect, [w.HWND, ctypes.POINTER(w.RECT)], w.BOOL),
+        (user32.SetCapture, [w.HWND], w.HWND),
+        (user32.ReleaseCapture, [], w.BOOL),
+        (user32.PostQuitMessage, [ctypes.c_int], None),
+        (gdi32.CreateCompatibleDC, [w.HDC], w.HDC),
+        (gdi32.CreateDIBSection, [w.HDC, ctypes.POINTER(BITMAPINFOHEADER), w.UINT, ctypes.POINTER(ctypes.c_void_p),
                                   w.HANDLE, w.DWORD], w.HBITMAP),
-        gdi32.SelectObject: ([w.HDC, w.HGDIOBJ], w.HGDIOBJ),
-        kernel32.GetModuleHandleW: ([w.LPCWSTR], w.HMODULE)
-    }
+        (gdi32.SelectObject, [w.HDC, w.HGDIOBJ], w.HGDIOBJ),
+        (kernel32.GetModuleHandleW, [w.LPCWSTR], w.HMODULE)
+    ]
 
-    for function, (arguments, result) in signatures.items():
+    for function, arguments, result in signatures:
         function.argtypes = arguments
         function.restype = result
 
