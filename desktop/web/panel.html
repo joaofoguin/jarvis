@@ -99,6 +99,28 @@
   .list { display: flex; flex-direction: column; gap: 8px; }
   details summary { cursor: pointer; padding: 6px 0; }
   #status { min-height: 22px; font: 12px var(--mono); letter-spacing: 1px; color: var(--accent); }
+  .note { min-height: 18px; font: 12px var(--mono); letter-spacing: 1px; color: var(--accent); }
+  .note:empty { display: none; }
+
+  /* Prévia do orbe na cor escolhida. */
+  .appearance { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; flex: 1; }
+  .preview { flex-shrink: 0; position: relative; width: 132px; height: 132px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); margin: auto; }
+  .preview::before { content: ""; position: absolute; inset: 22px; border-radius: 50%; border: 2px dashed color-mix(in srgb, var(--accent) 80%, transparent); animation: spin 18s linear infinite; }
+  .preview::after {
+    content: ""; position: absolute; inset: 42px; border-radius: 50%;
+    background: radial-gradient(circle, #fff 0%, var(--accent) 40%, #0D1520 100%);
+    box-shadow: 0 0 28px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  .appearance .swatches { flex: 1; min-width: 180px; }
+
+  /* Barras de rolagem finas, na cor de destaque. */
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent) 35%, transparent) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--ground); }
+  ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 5px; border: 2px solid var(--ground); }
+  ::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+  ::-webkit-scrollbar-corner { background: var(--ground); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 </head>
@@ -112,12 +134,9 @@
         <h1>Preferências</h1>
       </div>
     </div>
-    <div style="display: flex; gap: 8px">
-      <button type="button" class="primary" id="save">Salvar</button>
-      <button type="button" class="remove" id="close" aria-label="Fechar">✕</button>
-    </div>
+    <button type="button" class="remove" id="close" aria-label="Fechar">✕</button>
   </div>
-  <div id="status" role="status"></div>
+  <div class="note" id="status" role="status"></div>
 
   <section class="card">
     <h2>Uso de IA</h2>
@@ -145,7 +164,10 @@
     <section class="card">
       <h2>Aparência</h2>
       <span class="muted">Cor do orbe e das janelas</span>
-      <div class="swatches" id="swatches"></div>
+      <div class="appearance">
+        <div class="swatches" id="swatches"></div>
+        <div class="preview" aria-hidden="true"></div>
+      </div>
     </section>
 
     <section class="card">
@@ -154,6 +176,7 @@
       <label for="rate" class="muted">Velocidade da fala: <span id="rate-label"></span></label>
       <input id="rate" type="range" min="-50" max="50" step="5">
       <button type="button" class="ghost" id="preview" style="align-self: flex-start">Testar: “Às suas ordens, senhor.”</button>
+      <div class="note" id="voice-note" role="status"></div>
     </section>
 
     <section class="card">
@@ -170,7 +193,7 @@
 
     <section class="card">
       <h2>Notícias</h2>
-      <span class="muted">Temas que aparecem no chat em tela cheia. Salve para aplicar.</span>
+      <span class="muted">Temas que aparecem no chat em tela cheia.</span>
       <div class="list" id="topics"></div>
       <form id="topic-form" style="display: flex; flex-wrap: wrap; gap: 8px">
         <label for="topic" class="sr">Novo tema</label>
@@ -184,6 +207,7 @@
       <span class="muted">Contas usadas no painel (atividades pendentes dos últimos 30 dias) e nos avisos do mural. Sem nenhuma marcada, valem todas.</span>
       <div class="list" id="accounts"></div>
       <button type="button" class="ghost" id="connect" style="align-self: flex-start">Conectar avisos do mural</button>
+      <span class="note" id="notices-note" role="status"></span>
       <span class="muted" id="notices-state"></span>
     </section>
 
@@ -196,11 +220,13 @@
         <input id="repo" type="url" placeholder="https://github.com/dono/repositorio" required>
         <button type="submit" class="primary">Adicionar</button>
       </form>
+      <div class="note" id="skill-note" role="status"></div>
     </section>
 
     <section class="card" style="grid-column: 1 / -1">
       <h2>Memória</h2>
       <span class="muted">O que você ensinou no chat. Também dá para pedir “esqueça…”.</span>
+      <div class="note" id="memory-note" role="status"></div>
       <div id="memory"></div>
     </section>
   </div>
@@ -220,7 +246,8 @@
     return node;
   }
 
-  function status(text) { $("status").textContent = text; }
+  // Cada aviso aparece no cartão da ação; o do topo fica só para erros ao salvar.
+  function status(text, where = "status") { $(where).textContent = text; }
 
   function setAccent(color) { document.documentElement.style.setProperty("--accent", color); }
 
@@ -233,7 +260,7 @@
       const button = element("button", { type: "button", className: "option swatch" }, [element("i"), name]);
       button.querySelector("i").style.background = hex;
       button.setAttribute("aria-pressed", String(preferences.accent.toUpperCase() === hex));
-      button.onclick = () => { preferences.accent = hex; renderPreferences(); };
+      button.onclick = () => change({ accent: hex });
       return button;
     }));
 
@@ -243,7 +270,7 @@
         element("span", { className: "muted", textContent: id === preferences.voice ? "Em uso" : "Escolher" })
       ]);
       button.setAttribute("aria-pressed", String(id === preferences.voice));
-      button.onclick = () => { preferences.voice = id; renderPreferences(); };
+      button.onclick = () => change({ voice: id });
       return button;
     }));
 
@@ -256,20 +283,17 @@
 
     $("accounts").replaceChildren(...(window.googleAccounts.length ? window.googleAccounts.map((account) => {
       const box = element("input", { type: "checkbox", checked: preferences.classroom_accounts.includes(account) });
-      box.onchange = () => {
-        preferences.classroom_accounts = box.checked
+      box.onchange = () => change({
+        classroom_accounts: box.checked
           ? [...preferences.classroom_accounts, account]
-          : preferences.classroom_accounts.filter((other) => other !== account);
-      };
+          : preferences.classroom_accounts.filter((other) => other !== account)
+      });
       return element("label", { className: "item", style: "justify-content: flex-start; min-height: 44px" }, [box, account]);
     }) : [element("span", { className: "muted", textContent: "Uma conta só (GOOGLE_ACCOUNTS vazio)." })]));
 
     $("topics").replaceChildren(...preferences.news_topics.map((topic) => element("div", { className: "item" }, [
       element("span", { textContent: topic }),
-      removeButton(`Tirar ${topic}`, () => {
-        preferences.news_topics = preferences.news_topics.filter((other) => other !== topic);
-        renderPreferences();
-      })
+      removeButton(`Tirar ${topic}`, () => change({ news_topics: preferences.news_topics.filter((other) => other !== topic) }))
     ])));
   }
 
@@ -311,7 +335,7 @@
     const repos = Object.entries(skills);
     $("skills").replaceChildren(...(repos.length ? repos.map(([name, list]) => element("div", { className: "item" }, [
       element("span", {}, [element("div", { textContent: name }), element("div", { className: "muted", textContent: list.join(", ") })]),
-      removeButton(`Remover ${name}`, async () => show(await api().remove_skill_repo(name), renderSkills))
+      removeButton(`Remover ${name}`, async () => show(await api().remove_skill_repo(name), renderSkills, "skill-note"))
     ])) : [element("span", { className: "muted", textContent: "Nenhum repositório ainda." })]));
   }
 
@@ -319,20 +343,30 @@
     $("memory").replaceChildren(...Object.entries(memory).map(([subject, { title, items }]) => {
       const list = element("div", { className: "list" }, items.map(([key, value]) => element("div", { className: "item" }, [
         element("span", { textContent: `${key}: ${value}` }),
-        removeButton(`Esquecer ${key}`, async () => show(await api().forget_memory(subject, key), renderMemory))
+        removeButton(`Esquecer ${key}`, async () => show(await api().forget_memory(subject, key), renderMemory, "memory-note"))
       ])));
       return element("details", {}, [element("summary", { textContent: `${title} (${items.length})` }), list]);
     }));
   }
 
   // Respostas do Python: {"error": ...} ou {"ok": dados}.
-  function show(result, render) {
+  function show(result, render, where = "status") {
     if (result.error) {
-      status(result.error);
+      status(result.error, where);
     } else {
-      status("");
+      status("", where);
       render(result.ok);
     }
+  }
+
+  // Toda mudança é salva e aplicada na hora, sem botão de salvar.
+  async function change(values) {
+    Object.assign(preferences, values);
+    renderPreferences();
+    show(await api().save_preferences(preferences), (saved) => {
+      preferences = saved;
+      renderPreferences();
+    });
   }
 
   $("rate").oninput = () => {
@@ -340,22 +374,16 @@
     preferences.rate = `${value < 0 ? "-" : "+"}${Math.abs(value)}%`;
     $("rate-label").textContent = preferences.rate;
   };
+  // Salva quando solta o controle, não a cada passo do arraste.
+  $("rate").onchange = () => change({});
 
   for (const key of ["wake_word", "speak_replies"]) {
-    $(key).onclick = () => { preferences[key] = !preferences[key]; renderPreferences(); };
+    $(key).onclick = () => change({ [key]: !preferences[key] });
   }
 
   $("preview").onclick = async () => {
-    status("Falando…");
-    show(await api().preview_voice(preferences.voice, preferences.rate), () => {});
-  };
-
-  $("save").onclick = async () => {
-    show(await api().save_preferences(preferences), (saved) => {
-      preferences = saved;
-      renderPreferences();
-      status("Preferências salvas.");
-    });
+    status("Falando…", "voice-note");
+    show(await api().preview_voice(preferences.voice, preferences.rate), () => {}, "voice-note");
   };
 
   $("topic-form").onsubmit = (event) => {
@@ -363,9 +391,7 @@
     const topic = $("topic").value.trim();
 
     if (topic && !preferences.news_topics.includes(topic)) {
-      preferences.news_topics = [...preferences.news_topics, topic];
-      renderPreferences();
-      status("Tema incluído. Clique em Salvar para aplicar.");
+      change({ news_topics: [...preferences.news_topics, topic] });
     }
 
     $("topic").value = "";
@@ -374,21 +400,22 @@
   $("close").onclick = () => api().hide_panel();
 
   $("connect").onclick = async () => {
-    status("Abrindo o login do Google no navegador…");
+    status("Abrindo o login do Google no navegador…", "notices-note");
     show(await api().connect_notices(), () => {
       $("notices-state").textContent = "Avisos do mural conectados: o JARVIS avisa quando surgir algo novo.";
-      status("Mural conectado.");
-    });
+      status("Mural conectado.", "notices-note");
+    }, "notices-note");
   };
 
   $("skill-form").onsubmit = async (event) => {
     event.preventDefault();
-    status("Baixando o repositório…");
+    status("Baixando o repositório…", "skill-note");
     show(await api().add_skill_repo($("repo").value), (skills) => {
-      $("repo").value = "";
       renderSkills(skills);
-      status("Repositório adicionado.");
-    });
+      status("Repositório adicionado.", "skill-note");
+    }, "skill-note");
+    // Com erro ou não, o campo volta limpo para a próxima tentativa.
+    $("repo").value = "";
   };
 
   document.addEventListener("keydown", (event) => {
@@ -403,11 +430,11 @@
     window.googleAccounts = data.google_accounts;
     $("notices-state").textContent = data.notices_connected
       ? "Avisos do mural conectados: o JARVIS avisa quando surgir algo novo."
-      : "Avisos do mural ainda não conectados. Salve as contas e clique em Conectar (abre o login do Google).";
+      : "Avisos do mural ainda não conectados. Marque as contas e clique em Conectar (abre o login do Google).";
     renderPreferences();
     renderSkills(data.skills);
     renderMemory(data.memory);
-    status("");
+    document.querySelectorAll("[role=status]").forEach((note) => { note.textContent = ""; });
     renderUsage(await api().load_usage());
   }
 </script>

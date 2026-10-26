@@ -42,3 +42,10 @@ def test_an_error_in_the_orb_thread_is_reported(monkeypatch):
     shown.run_safely(errors.append)
 
     assert str(errors[0]) == "sem janela"
+
+
+def test_the_disk_background_is_see_through():
+    frame = orb.render("idle", "#3FD4F5", 0, 300)
+
+    # Entre o aro tracejado e as marcas da borda só há o véu do disco.
+    assert frame.getpixel((150 + 112, 150))[3] < 128
