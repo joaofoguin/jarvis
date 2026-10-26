@@ -1,4 +1,5 @@
 import browser
+import drive_data
 import google_data
 import icloud_data
 import memory
@@ -8,17 +9,19 @@ import whatsapp_app
 from agent.agent import call_claude_code, run_action
 from llm import BROWSER_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, MEMORY_TOOLS, TOOLS, LLMError, ask_llm
 from router import (
-    CLAUDE_CODE_PREFIX, FORGET_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
+    CLAUDE_CODE_PREFIX, DRIVE_PREFIX, DRIVE_READS, FORGET_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
     ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, MEMORY_PREFIX, WHATSAPP_PREFIX,
-    detect_browser, detect_command, detect_contact, detect_google, memory_args, normalize, plain, whatsapp_args
+    detect_browser, detect_command, detect_contact, detect_drive, detect_google, drive_args, memory_args, normalize,
+    plain, whatsapp_args
 )
 
 
 # Mensagens anteriores enviadas à IA. Mais contexto custa mais tokens.
 HISTORY_LIMIT = 6
 
-# Mensagem do WhatsApp esperando o "sim" do usuário: (número, texto) ou None.
-pending_message = None
+# Ação com efeito fora do notebook esperando o "sim" do usuário: (resposta, tarefa) ou None.
+# Enviar mensagem no WhatsApp e editar um arquivo do Drive passam por aqui.
+pending_action = None
 
 CONFIRMATIONS = {"sim", "s", "pode", "pode enviar", "pode mandar", "envia", "manda", "confirmo", "ok"}
 
@@ -31,20 +34,22 @@ def reply_to(text, history):
     para mostrar no chat. É None quando não há nada a esperar.
     """
 
-    global pending_message
+    global pending_action
 
-    if pending_message:
-        phone, message = pending_message
-        pending_message = None
+    if pending_action:
+        reply, task = pending_action
+        pending_action = None
 
         if normalize(text).strip(" .!") in CONFIRMATIONS:
-            return "Enviando, senhor.", lambda: run_whatsapp(phone, message)
+            return reply, task
 
         # Qualquer outra resposta cancela; se for um pedido novo, ele segue normalmente.
         if normalize(text).strip(" .!") in {"nao", "n", "cancela", "cancelar"}:
-            return "Certo, senhor. Não enviei.", None
+            return "Certo, senhor. Cancelado.", None
 
-    match = detect_browser(text) or detect_command(text) or detect_contact(text) or detect_google(text)
+    match = (
+        detect_browser(text) or detect_command(text) or detect_contact(text) or detect_drive(text) or detect_google(text)
+    )
 
     if match:
         return run_command(*match, text)
@@ -102,7 +107,7 @@ def continue_after_memory(note, text, history):
 def run_command(command, answer, text):
     """Executa um comando do roteador ou da IA. Retorna (resposta, tarefa)."""
 
-    global pending_message
+    global pending_action
 
     if command.startswith(CLAUDE_CODE_PREFIX):
         task = command[len(CLAUDE_CODE_PREFIX):]
@@ -135,8 +140,26 @@ def run_command(command, answer, text):
         except Exception as error:
             return f"Desculpe, senhor. Não consegui achar o número: {error}", None
 
-        pending_message = phone, message
+        pending_action = "Enviando, senhor.", lambda: run_whatsapp(phone, message)
         return f"Enviar \"{message}\" para {name} (+{phone}) no WhatsApp? Responda \"sim\" para confirmar.", None
+
+    if command.startswith(DRIVE_PREFIX):
+        action, name, value, new_value = drive_args(command)
+
+        if action in DRIVE_READS:
+            function = {"buscar": drive_data.search_summary, "ler": drive_data.read_summary, "baixar": drive_data.download}
+            return answer, lambda: run_google(function[action], name, text)
+
+        try:
+            # O arquivo é escolhido agora, para a confirmação mostrar exatamente o que vai mudar.
+            account, drive, docs, file = drive_data.find_one(name, drive_data.services(text))
+            drive_data.check_edit(action, file)
+
+        except Exception as error:
+            return f"Desculpe, senhor. Não vou editar: {error}", None
+
+        pending_action = "Editando, senhor.", lambda: drive_data.edit(action, drive, docs, file, value, new_value)
+        return f"{drive_data.edit_question(action, file, value, new_value)} Responda \"sim\" para confirmar.", None
 
     if command == INSTAGRAM_MESSAGES:
         return answer, lambda: run_browser(browser.instagram_unread)

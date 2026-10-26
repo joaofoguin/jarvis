@@ -32,6 +32,9 @@ Use claude_code só para pedidos de programação, como criar ou alterar código
 MENSAGENS: para enviar ou mudar uma mensagem de WhatsApp, use sempre enviar_whatsapp com o texto final
 já escrito. O sistema pede a confirmação ao usuário; não peça confirmação em texto.
 
+ARQUIVOS: para mudar um arquivo do Google Drive, use editar_arquivo_drive com o texto final. O sistema também
+pede a confirmação.
+
 MEMÓRIA: use lembrar só para algo novo ou corrigido. Se a informação já está na sua memória, não guarde de novo."""
 
 
@@ -73,6 +76,37 @@ GOOGLE_TOOLS = [
     tool(
         "ver_tarefas_classroom",
         "Lista as atividades pendentes do usuário no Google Classroom."
+    ),
+    tool(
+        "buscar_drive",
+        "Procura arquivos no Google Drive do usuário pelo nome e mostra os encontrados, com o link.",
+        {"arquivo": {"type": "string", "description": "Parte do nome do arquivo, como o usuário disse."}},
+        ["arquivo"]
+    ),
+    tool(
+        "ler_arquivo_drive",
+        "Lê o texto de um arquivo do Google Drive (documento, planilha, apresentação ou texto) para mostrar, "
+        "resumir ou responder sobre ele.",
+        {"arquivo": {"type": "string", "description": "Parte do nome do arquivo."}},
+        ["arquivo"]
+    ),
+    tool(
+        "baixar_arquivo_drive",
+        "Baixa um arquivo do Google Drive para o computador do usuário (documentos do Google viram Word, Excel ou PowerPoint).",
+        {"arquivo": {"type": "string", "description": "Parte do nome do arquivo."}},
+        ["arquivo"]
+    ),
+    tool(
+        "editar_arquivo_drive",
+        "Edita um arquivo do Google Drive. O usuário confirma antes. acrescentar: põe texto no final de um documento. "
+        "substituir: troca um trecho por outro num documento. renomear: muda o nome de qualquer arquivo.",
+        {
+            "arquivo": {"type": "string", "description": "Parte do nome do arquivo."},
+            "acao": {"type": "string", "enum": ["acrescentar", "substituir", "renomear"]},
+            "texto": {"type": "string", "description": "acrescentar: o texto novo. substituir: o trecho atual. renomear: o novo nome."},
+            "novo_texto": {"type": "string", "description": "Só para substituir: o que entra no lugar do trecho."}
+        },
+        ["arquivo", "acao", "texto"]
     ),
     tool(
         "ver_youtube",

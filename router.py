@@ -68,6 +68,19 @@ WHATSAPP_PATTERN = re.compile(
 )
 INSTAGRAM_PATTERN = re.compile(r"\b(insta(gram)?|direct)\b.*\bmensage|\bmensage.*\b(insta(gram)?|direct)\b")
 
+# Google Drive (só na janela de chat do notebook). Editar sempre pede um "sim" antes.
+DRIVE_PREFIX = "google_drive:"
+DRIVE_READS = {"buscar", "ler", "baixar"}
+DRIVE_EDITS = {"acrescentar", "substituir", "renomear"}
+DRIVE_MAX_NAME = 200
+DRIVE_MAX_TEXT = 1000
+
+DRIVE_PATTERN = re.compile(
+    r"^(jarvis,? )?(?P<verbo>procur[ae]|busc[ae]|baix[ae]|baixar|leia|le|ler)( o| a| os| as)?"
+    r"( arquivos?| documentos?| planilhas?| apresentac(ao|oes))? (?P<nome>.+?) (no|do|da) (meu )?(google )?drive\W*$"
+)
+DRIVE_VERBS = {"procur": "buscar", "busc": "buscar", "baix": "baixar", "le": "ler"}
+
 # Contatos do iPhone, lidos do iCloud (só na janela de chat do notebook).
 ICLOUD_CONTACT_PREFIX = "icloud_contato:"
 
@@ -170,6 +183,40 @@ def detect_browser(question):
     return None
 
 
+def drive_command(action, name, text="", new_text=""):
+    """Comando do Drive com as partes em JSON, ou None se a ação ou os textos não servirem."""
+
+    name, text, new_text = (" ".join(str(part).split()) for part in (name, text, new_text))
+
+    if action not in DRIVE_READS | DRIVE_EDITS or not 0 < len(name) <= DRIVE_MAX_NAME:
+        return None
+
+    if action in DRIVE_EDITS and not 0 < len(text) <= DRIVE_MAX_TEXT or len(new_text) > DRIVE_MAX_TEXT:
+        return None
+
+    return DRIVE_PREFIX + json.dumps([action, name, text, new_text], ensure_ascii=False), GOOGLE_ANSWER
+
+
+def drive_args(command):
+    """Retorna (ação, arquivo, texto, novo texto) de um comando google_drive."""
+
+    return tuple(json.loads(command[len(DRIVE_PREFIX):]))
+
+
+def detect_drive(question):
+    """Reconhece "procure/baixe/leia X no Drive" sem IA. Retorna (comando, resposta) ou None."""
+
+    original = " ".join(question.split())
+    match = DRIVE_PATTERN.match(normalize(original))
+
+    if not match:
+        return None
+
+    action = next(value for prefix, value in DRIVE_VERBS.items() if match["verbo"].startswith(prefix))
+    # Pega o nome do texto original, mantendo maiúsculas e acentos.
+    return drive_command(action, original[match.start("nome"):match.end("nome")])
+
+
 def contact_command(name):
     name = " ".join(str(name).split())[:60]
     return (ICLOUD_CONTACT_PREFIX + name, GOOGLE_ANSWER) if name else None
@@ -215,6 +262,15 @@ def command_for_tool(name, arguments):
 
     if name == "ver_mensagens_instagram":
         return INSTAGRAM_MESSAGES, BROWSER_ANSWER
+
+    if name in ("buscar_drive", "ler_arquivo_drive", "baixar_arquivo_drive"):
+        action = {"buscar_drive": "buscar", "ler_arquivo_drive": "ler", "baixar_arquivo_drive": "baixar"}[name]
+        return drive_command(action, arguments.get("arquivo", ""))
+
+    if name == "editar_arquivo_drive":
+        return drive_command(
+            arguments.get("acao", ""), arguments.get("arquivo", ""), arguments.get("texto", ""), arguments.get("novo_texto", "")
+        )
 
     if name == "buscar_contato":
         return contact_command(arguments.get("nome", ""))

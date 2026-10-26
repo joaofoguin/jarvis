@@ -138,7 +138,7 @@ def test_youtube_report_saved_as_pdf_when_asked(actions, monkeypatch, tmp_path):
 @pytest.fixture
 def sent(monkeypatch):
     messages = []
-    monkeypatch.setattr(core, "pending_message", None)
+    monkeypatch.setattr(core, "pending_action", None)
     monkeypatch.setattr(core.whatsapp_app, "send", lambda phone, text: messages.append((phone, text)) or "enviada")
     monkeypatch.setattr(core.icloud_data, "address_cards", lambda: [
         "BEGIN:VCARD\r\nFN:Amor❤️🥵\r\nTEL:+5514996872005\r\nEND:VCARD",
@@ -166,13 +166,13 @@ def test_whatsapp_unknown_contact_is_not_queued(actions, sent):
     answer, task = core.reply_to("manda pro Zé no zap: oi", [])
 
     assert answer == "Desculpe, senhor. Não consegui achar o número: não encontrei Zé com telefone nos seus contatos do iCloud"
-    assert core.pending_message is None
+    assert core.pending_action is None
 
 
 def test_whatsapp_message_cancelled(actions, sent):
     core.reply_to("manda pro Amor no zap: oi", [])
 
-    assert core.reply_to("não", []) == ("Certo, senhor. Não enviei.", None)
+    assert core.reply_to("não", []) == ("Certo, senhor. Cancelado.", None)
     assert sent == []
 
 
@@ -277,3 +277,45 @@ def test_contact_saved_as_number(actions, sent, monkeypatch):
     assert core.reply_to("avisa o Montanha", [])[0] == (
         'Enviar "oi" para Montanha (+5518996357288) no WhatsApp? Responda "sim" para confirmar.'
     )
+
+
+@pytest.fixture
+def drive(monkeypatch):
+    from tests.test_drive_data import DOC, FakeDocs, FakeDrive
+
+    docs = FakeDocs()
+    monkeypatch.setattr(core, "pending_action", None)
+    monkeypatch.setattr(core.drive_data, "services", lambda request: [(None, FakeDrive([DOC]), docs)])
+    return docs
+
+
+def test_drive_edit_waits_for_confirmation(actions, drive, monkeypatch):
+    monkeypatch.setattr(core, "ask_llm", lambda *args: ("Certo.", 'google_drive:["acrescentar", "Redes", "Fim.", ""]'))
+
+    answer, task = core.reply_to("acrescente Fim. no relatório de redes", [])
+
+    assert answer == 'Acrescentar ao final de "Relatório de Redes" o texto: "Fim."? Responda "sim" para confirmar.'
+    assert task is None and drive.log == []
+
+    answer, task = core.reply_to("sim", [])
+
+    assert task() == "Pronto, senhor. Acrescentei o texto ao final de Relatório de Redes."
+    assert drive.log == [("d1", {"insertText": {"endOfSegmentLocation": {}, "text": "\nFim."}})]
+
+
+def test_drive_edit_cancelled(actions, drive, monkeypatch):
+    monkeypatch.setattr(core, "ask_llm", lambda *args: ("Certo.", 'google_drive:["renomear", "Redes", "Novo", ""]'))
+
+    core.reply_to("renomeie o relatório de redes para Novo", [])
+
+    assert core.reply_to("não", []) == ("Certo, senhor. Cancelado.", None)
+    assert drive.log == []
+
+
+def test_drive_search_runs_in_background_without_ai(actions, monkeypatch):
+    monkeypatch.setattr(core, "ask_llm", lambda *args: pytest.fail("não deveria chamar a IA"))
+    monkeypatch.setattr(core.drive_data, "search_summary", lambda name, request: f"procurei {name}")
+
+    answer, task = core.reply_to("procure o relatório de Redes no Drive", [])
+
+    assert task() == "procurei relatório de Redes"
