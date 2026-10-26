@@ -137,3 +137,27 @@ def test_memory_tools_become_commands():
     assert memory_args(command) == ["contatos", "toninho", "Toninho Hajime"]
     assert memory_args(command_for_tool("esquecer", {"assunto": "contatos", "chave": "toninho"})[0]) == ["contatos", "toninho"]
     assert command_for_tool("lembrar", {"assunto": "usuario", "chave": "apelido", "valor": ""}) is None
+
+
+@pytest.mark.parametrize("question, action, name", [
+    ("procure o relatório de Redes no Drive", "buscar", "relatório de Redes"),
+    ("Jarvis, baixe o arquivo Currículo João do meu Google Drive", "baixar", "Currículo João"),
+    ("leia o documento Ata da reunião no drive", "ler", "Ata da reunião"),
+])
+def test_detects_drive_requests(question, action, name):
+    from router import detect_drive, drive_args
+
+    command, answer = detect_drive(question)
+
+    assert drive_args(command) == (action, name, "", "")
+
+
+def test_drive_edits_need_text_and_a_known_action():
+    from router import command_for_tool, drive_args
+
+    command, _ = command_for_tool("editar_arquivo_drive", {"arquivo": "Ata", "acao": "acrescentar", "texto": "Fim."})
+
+    assert drive_args(command) == ("acrescentar", "Ata", "Fim.", "")
+    assert command_for_tool("editar_arquivo_drive", {"arquivo": "Ata", "acao": "acrescentar", "texto": ""}) is None
+    assert command_for_tool("editar_arquivo_drive", {"arquivo": "Ata", "acao": "apagar", "texto": "x"}) is None
+    assert drive_args(command_for_tool("baixar_arquivo_drive", {"arquivo": "Ata"})[0])[0] == "baixar"

@@ -457,6 +457,20 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - O chat em tela cheia virou um painel HUD, inspirado em interfaces do JARVIS dos filmes: topo com status e relógio, calendário do mês com a agenda de hoje e o Classroom à esquerda, o reator animado e a conversa no centro, e feed (histórico), notícias e uso de IA à direita. Os cartões têm cantos marcados e títulos numerados.
 - A janela pequena do chat e o painel de preferências usam o mesmo visual. Fontes do próprio Windows (Bahnschrift e Cascadia Mono/Consolas), sem baixar nada.
 
+### Atualização de 26/10/2026: Google Drive
+
+- `drive_data.py` conecta o chat do notebook ao Google Drive, com um login próprio ("drive", token `google_token_..._drive.json`). Ele pede acesso de escrita ao Drive e ao Docs, por isso é separado do login só de leitura da Agenda e do Classroom. Precisa da Google Drive API e da Google Docs API ativadas no projeto do Google Cloud.
+- **Buscar** (`buscar_drive`): lista os arquivos com aquele trecho no nome, dos mais recentes para os mais antigos, com o link.
+- **Ler** (`ler_arquivo_drive`): mostra no chat o texto de documentos, planilhas (CSV), apresentações e arquivos de texto, até 4.000 caracteres. Assim a IA pode resumir ou responder sobre ele depois.
+- **Baixar** (`baixar_arquivo_drive`): salva em `~/Downloads/JARVIS` (ou em `JARVIS_DOWNLOADS`). Arquivos do Google são exportados para Word, Excel ou PowerPoint.
+- **Editar** (`editar_arquivo_drive`), sempre com um "sim" antes:
+  - acrescentar texto no fim de um Documento Google;
+  - substituir um trecho por outro num Documento Google;
+  - renomear qualquer arquivo.
+  O arquivo é escolhido antes da pergunta, então a confirmação mostra exatamente o que vai mudar.
+- Frases como "procure/baixe/leia X no Drive" são reconhecidas no `router.py`, sem IA. Editar passa pela IA, que preenche a ação e o texto.
+- A confirmação ("sim") virou genérica em `desktop/core.py` (`pending_action`): serve para o WhatsApp e para o Drive.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados
