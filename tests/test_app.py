@@ -124,8 +124,8 @@ def test_answers_go_to_the_history_file(app, jarvis, monkeypatch):
 
     jarvis.send("oi")
 
-    assert dashboard.history()[0]["text"] == "oi"
-    assert dashboard.history()[0]["answer"] == "Às ordens."
+    assert dashboard.history()[0]["entries"][-1]["text"] == "oi"
+    assert dashboard.history()[0]["entries"][-1]["answer"] == "Às ordens."
 
 
 def test_only_web_links_are_opened(app, jarvis, monkeypatch):

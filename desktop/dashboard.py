@@ -23,7 +23,12 @@ NEWS_TIMEOUT = 10
 # O Classroom do painel mostra só o que foi passado nesse período.
 CLASSROOM_DAYS = 30
 
-HISTORY_SHOWN = 8
+# O feed junta os pedidos em conversas, como os chats de IA: um intervalo maior que esse começa outra.
+CONVERSATION_GAP = timedelta(minutes=30)
+CONVERSATIONS_SHOWN = 6
+
+# Quantas linhas do fim do histórico são lidas para montar as conversas.
+HISTORY_READ = 200
 
 # Guarda só o começo de cada resposta; o histórico é para lembrar o que foi pedido.
 HISTORY_ANSWER_LIMIT = 200
@@ -43,13 +48,27 @@ def log(when, text, answer):
 
 
 def history():
+    """As últimas conversas, da mais nova para a mais antiga; os pedidos de cada uma em ordem."""
+
     path = history_path()
 
     if not path.exists():
         return []
 
-    lines = path.read_text(encoding="utf-8").splitlines()[-HISTORY_SHOWN:]
-    return [json.loads(line) for line in reversed(lines)]
+    conversations = []
+
+    for line in path.read_text(encoding="utf-8").splitlines()[-HISTORY_READ:]:
+        entry = json.loads(line)
+        when = datetime.fromisoformat(entry["when"])
+
+        if conversations and when - datetime.fromisoformat(conversations[-1]["end"]) <= CONVERSATION_GAP:
+            conversations[-1]["entries"].append(entry)
+            conversations[-1]["end"] = entry["when"]
+        else:
+            # O primeiro pedido dá o título da conversa.
+            conversations.append({"title": entry["text"], "start": entry["when"], "end": entry["when"], "entries": [entry]})
+
+    return conversations[::-1][:CONVERSATIONS_SHOWN]
 
 
 def google_ready(accounts=None):

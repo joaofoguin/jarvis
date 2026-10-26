@@ -160,10 +160,21 @@
   .tile .headline { font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
   .tile .muted { margin-top: auto; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  /* Feed: o histórico como um registro do sistema */
-  .feed { font: 12px/1.5 var(--mono); display: flex; flex-direction: column; gap: 6px; }
-  .feed div { overflow-wrap: anywhere; }
-  .feed time { color: var(--faint); margin-right: 8px; }
+  /* Feed: o histórico em conversas, agrupadas por dia, como a lateral dos chats de IA. */
+  .feed { display: flex; flex-direction: column; gap: 4px; }
+  .feed .day { margin-top: 6px; font: 10px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--faint); }
+  .feed .day:first-child { margin-top: 0; }
+  .feed details { border: 1px solid transparent; }
+  .feed details[open] { border-color: var(--line); background: color-mix(in srgb, var(--accent) 4%, transparent); }
+  .feed summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 7px 10px; cursor: pointer; }
+  .feed summary::-webkit-details-marker { display: none; }
+  .feed summary:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+  .feed summary .name { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .feed summary time, .feed summary .count { flex-shrink: 0; font: 11px var(--mono); color: var(--muted); }
+  .feed summary .count { min-width: 20px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; text-align: center; }
+  .feed .entries { display: flex; flex-direction: column; gap: 8px; padding: 4px 10px 10px 12px; font: 12px/1.5 var(--mono); }
+  .feed .entries div { overflow-wrap: anywhere; }
+  .feed .entries time { color: var(--faint); margin-right: 8px; }
   .feed .answer { color: var(--muted); }
 
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -349,6 +360,17 @@
     return `há ${Math.round(minutes / 1440)} d`;
   }
 
+  // "Hoje", "Ontem" ou a data, para separar as conversas por dia.
+  function dayLabel(iso) {
+    const day = new Date(`${iso.slice(0, 10)}T00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days = Math.round((today - day) / 86400000);
+    if (days === 0) return "Hoje";
+    if (days === 1) return "Ontem";
+    return day.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "").replace(" de ", " ");
+  }
+
   function empty(text) {
     return [element("span", { className: "muted", textContent: text })];
   }
@@ -371,11 +393,37 @@
         return tile;
       }) : empty("Escolha temas de notícias nas preferências.")));
     },
-    history: (entries) => $("history").replaceChildren(...(entries.length ? entries.map((entry) => element("div", {}, [
-      element("time", { textContent: `[${entry.when.slice(11)}]` }),
-      element("span", { textContent: entry.text }),
-      element("div", { className: "answer", textContent: `› ${entry.answer}` })
-    ])) : empty("Nada por aqui ainda."))),
+    history: (conversations) => {
+      const before = [...$("history").querySelectorAll("details")];
+      const seen = new Set(before.map((item) => item.dataset.start));
+      const open = new Set(before.filter((item) => item.open).map((item) => item.dataset.start));
+      let shownDay = null;
+      const rows = [];
+
+      conversations.forEach((conversation, index) => {
+        const day = dayLabel(conversation.start);
+        if (day !== shownDay) rows.push(element("div", { className: "day", textContent: shownDay = day }));
+
+        const item = element("details", {}, [
+          element("summary", {}, [
+            element("span", { className: "name", textContent: conversation.title }),
+            element("span", { className: "count", textContent: conversation.entries.length }),
+            element("time", { textContent: conversation.end.slice(11) })
+          ]),
+          element("div", { className: "entries" }, conversation.entries.map((entry) => element("div", {}, [
+            element("time", { textContent: `[${entry.when.slice(11)}]` }),
+            element("span", { textContent: entry.text }),
+            element("div", { className: "answer", textContent: `› ${entry.answer}` })
+          ])))
+        ]);
+        // Uma conversa nova no topo abre sozinha; as outras ficam como você deixou.
+        item.dataset.start = conversation.start;
+        item.open = open.has(conversation.start) || (index === 0 && !seen.has(conversation.start));
+        rows.push(item);
+      });
+
+      $("history").replaceChildren(...(rows.length ? rows : empty("Nada por aqui ainda.")));
+    },
     usage: (today) => $("usage").replaceChildren(element("div", { className: "stats" }, [
       element("div", {}, [element("b", { textContent: today.tokens.toLocaleString("pt-BR") }), element("span", { className: "muted", textContent: "tokens" })]),
       element("div", {}, [element("b", { textContent: today.calls }), element("span", { className: "muted", textContent: "perguntas" })]),

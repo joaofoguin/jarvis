@@ -49,3 +49,32 @@ def test_the_disk_background_is_see_through():
 
     # Entre o aro tracejado e as marcas da borda só há o véu do disco.
     assert frame.getpixel((150 + 112, 150))[3] < 128
+
+
+def test_close_button_shows_only_on_hover_and_takes_the_click():
+    plain = orb.render("idle", "#3FD4F5", 0)
+    hovered = orb.render("idle", "#3FD4F5", 0, hover=True)
+    x, y = round(orb.SIZE * orb.CLOSE_CENTER), round(orb.SIZE * (1 - orb.CLOSE_CENTER))
+
+    assert plain.getpixel((x, y))[3] < 10
+    assert hovered.getpixel((x, y))[3] > 200
+    assert orb.on_close_button(x, y, orb.SIZE)
+    assert not orb.on_close_button(orb.SIZE // 2, orb.SIZE // 2, orb.SIZE)
+
+
+def test_icon_is_the_orb_in_the_accent_color(tmp_path):
+    image = orb.icon("#F5B83F", 64)
+
+    assert image.size == (64, 64)
+    assert image.getpixel((0, 0))[3] == 0
+    assert image.getpixel((32, 32))[3] == 255
+    image.save(tmp_path / "jarvis.ico", sizes=[(16, 16), (64, 64)])
+
+
+def test_hiding_before_the_window_exists_keeps_it_hidden():
+    shown = orb.Orb("#3FD4F5")
+
+    shown.hide()
+    assert not shown.visible
+    shown.show()
+    assert shown.visible
