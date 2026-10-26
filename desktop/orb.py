@@ -26,6 +26,9 @@ BARS = 32
 # Clique só conta se o mouse andou menos que isso entre apertar e soltar; senão, foi arrastar.
 DRAG_PIXELS = 5
 
+# Opacidade do fundo do disco (0 a 255): baixa para não pesar sobre fundos claros.
+DISK_ALPHA = 12
+
 # O desenho é feito no dobro do tamanho e reduzido, para as bordas ficarem lisas.
 SUPERSAMPLE = 2
 
@@ -36,21 +39,23 @@ def rgb(color):
 
 @lru_cache(maxsize=4)
 def base(size, accent):
-    """O que não se move: o disco escuro, o brilho em volta e as marcas do aro."""
+    """O que não se move: o véu do disco, o brilho em volta e as marcas do aro."""
 
     color = rgb(accent)
     center = size / 2
     image = Image.new("RGBA", (size, size))
 
-    glow = Image.new("RGBA", (size, size))
+    # O fundo já na cor de destaque: o desfoque mistura com ela, e não com preto, e o brilho não escurece.
+    glow = Image.new("RGBA", (size, size), (*color, 0))
     ImageDraw.Draw(glow).ellipse([size * .2, size * .2, size * .8, size * .8], fill=(*color, 120))
     image.alpha_composite(glow.filter(ImageFilter.GaussianBlur(size / 9)))
 
     disk = Image.new("RGBA", (size, size))
     draw = ImageDraw.Draw(disk)
     radius = size * .44
-    # Um disco escuro meio transparente: o orbe aparece sobre qualquer fundo e todo ele recebe o clique.
-    draw.ellipse([center - radius, center - radius, center + radius, center + radius], fill=(7, 11, 18, 225), outline=(*color, 90), width=1)
+    # Um véu quase transparente: só os anéis e o brilho aparecem, e mesmo assim todo o disco recebe o
+    # clique (a janela só deixa passar o clique onde o alfa é zero).
+    draw.ellipse([center - radius, center - radius, center + radius, center + radius], fill=(7, 11, 18, DISK_ALPHA), outline=(*color, 90), width=1)
 
     for tick in range(60):
         angle = math.radians(tick * 6)
@@ -67,7 +72,7 @@ def base(size, accent):
 
 @lru_cache(maxsize=4)
 def core(size, accent):
-    """O núcleo luminoso, branco no meio e da cor de destaque na borda."""
+    """O núcleo luminoso, branco no meio e da cor de destaque na borda, que some aos poucos no fundo."""
 
     color = rgb(accent)
     image = Image.new("RGBA", (size, size))
@@ -77,11 +82,10 @@ def core(size, accent):
         share = step / (size / 2)
         if share < .4:
             mix = share / .4
-            fill = tuple(round(255 + (channel - 255) * mix) for channel in color)
+            fill = (*(round(255 + (channel - 255) * mix) for channel in color), 255)
         else:
-            mix = (share - .4) / .6
-            fill = tuple(round(channel + (dark - channel) * mix) for channel, dark in zip(color, (13, 21, 32)))
-        draw.ellipse([size / 2 - step, size / 2 - step, size / 2 + step, size / 2 + step], fill=(*fill, 255))
+            fill = (*color, round(255 * (1 - (share - .4) / .6)))
+        draw.ellipse([size / 2 - step, size / 2 - step, size / 2 + step, size / 2 + step], fill=fill)
 
     return image
 

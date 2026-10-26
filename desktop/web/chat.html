@@ -6,7 +6,7 @@
 <style>
   :root {
     --accent: #3FD4F5; --ground: #04080D; --panel: #08111A; --line: color-mix(in srgb, var(--accent) 18%, #0E1A26);
-    --text: #DDF3FB; --muted: #6F8CA0; --faint: #3B5263;
+    --text: #DDF3FB; --muted: #7F9BAE; --faint: #56707F;
     --mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
     --display: Bahnschrift, "Segoe UI", system-ui, sans-serif;
   }
@@ -20,6 +20,15 @@
       var(--ground);
   }
   button { font: inherit; cursor: pointer; }
+  /* Barras de rolagem finas, na cor de destaque. */
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent) 35%, transparent) transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+  /* Quando ainda há conteúdo abaixo, a borda de baixo some aos poucos, mostrando que dá para rolar. */
+  .more { -webkit-mask-image: linear-gradient(#000 calc(100% - 48px), transparent); mask-image: linear-gradient(#000 calc(100% - 48px), transparent); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
   /* Janela pequena: só o chat. Tela cheia: painéis dos dois lados do reator, como um HUD. */
@@ -116,7 +125,6 @@
   /* Cada barra cresce para fora a partir da ponta de dentro (raio 90). */
   @keyframes bar { 0%, 100% { transform: var(--turn) translateY(-90px) scaleY(.35) translateY(90px) } 50% { transform: var(--turn) translateY(-90px) scaleY(1) translateY(90px) } }
   @keyframes breathe { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.07) } }
-  #state { text-align: center; font: 12px var(--mono); letter-spacing: 4px; text-transform: uppercase; color: var(--accent); }
 
   .conversation { flex: 1; min-height: 0; }
   @media (max-width: 999px) { .conversation { border: none; background: none; padding: 0; } }
@@ -141,19 +149,16 @@
   #send { background: var(--accent); color: #04111A; }
 
   /* Notícias em blocos, como os do Iniciar do Windows 10. */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); grid-auto-rows: 104px; grid-auto-flow: dense; gap: 6px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); grid-auto-rows: 1fr; gap: 6px; }
   .tile {
     text-align: left; border: 1px solid var(--line); padding: 10px 12px; color: var(--text);
-    display: flex; flex-direction: column; justify-content: space-between; gap: 4px; overflow: hidden;
+    display: flex; flex-direction: column; gap: 6px; overflow: hidden;
     background: color-mix(in srgb, var(--accent) var(--tint), var(--panel));
   }
   .tile:hover, .tile:focus-visible { border-color: var(--accent); }
-  .tile .topic { font: 9px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .topic { font: 9px/1.4 var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--accent); overflow-wrap: anywhere; }
   .tile .headline { font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
-  .tile .muted { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tile.big { grid-column: span 2; grid-row: span 2; }
-  .tile.big .headline { font: 300 18px/1.3 var(--display); -webkit-line-clamp: 6; }
-  .tile.wide { grid-column: span 2; }
+  .tile .muted { margin-top: auto; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* Feed: o histórico como um registro do sistema */
   .feed { font: 12px/1.5 var(--mono); display: flex; flex-direction: column; gap: 6px; }
@@ -164,7 +169,7 @@
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .stats b { display: block; font: 300 24px/1.1 var(--display); font-variant-numeric: tabular-nums; }
 
-  .foot { grid-area: foot; display: flex; justify-content: space-between; padding: 10px 0 14px; border-top: 1px solid var(--line); font: 10px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--faint); }
+  .foot { grid-area: foot; display: flex; justify-content: space-between; padding: 10px 0 14px; border-top: 1px solid var(--line); font: 10px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -177,7 +182,7 @@
     <span id="state-small" class="compact-only" aria-hidden="true"></span>
     <div class="status wide-only">
       <div><span class="eyebrow">Sistema</span><b>Online</b></div>
-      <div><span class="eyebrow">Voz</span><b id="voice-state">Aguardando</b></div>
+      <div><span class="eyebrow">Voz</span><b id="voice-state" aria-live="polite">Aguardando</b></div>
     </div>
     <div class="clock wide-only"><b id="clock"></b><span class="eyebrow" id="date"></span></div>
     <div class="tools">
@@ -226,10 +231,9 @@
         <circle class="nucleus" cx="130" cy="130" r="44" fill="url(#glow)"></circle>
       </svg>
     </div>
-    <div id="state" class="wide-only" aria-live="polite">Aguardando comando</div>
 
     <div class="card conversation">
-      <div class="title wide-only">Conversa<span>00</span></div>
+      <div class="title wide-only">Conversa<span id="count">0 mensagens</span></div>
       <main id="log" class="scroll" aria-live="polite"></main>
     </div>
 
@@ -315,6 +319,9 @@
       element("span", { className: "text", textContent: text })
     ]));
     log.scrollTop = log.scrollHeight;
+    const count = log.children.length;
+    $("count").textContent = `${count} ${count === 1 ? "mensagem" : "mensagens"}`;
+    markOverflow();
 
     if (author === "jarvis" && wide.matches) loadSection("history");
   }
@@ -322,7 +329,6 @@
   function setState(state) {
     const label = STATES[state] || STATES.idle;
     $("reactor").dataset.state = state;
-    $("state").textContent = label;
     $("state-small").textContent = state === "idle" ? "" : label;
     $("voice-state").textContent = state === "idle" ? "Aguardando" : label.replace("…", "");
   }
@@ -353,10 +359,9 @@
     news: (items) => {
       const topics = [...new Set(items.map((item) => item.topic))];
 
-      $("news").replaceChildren(...(items.length ? items.map((item, index) => {
-        // O primeiro bloco é grande e alguns são largos, como no Iniciar; cada tema tem um tom.
-        const size = index === 0 ? "big" : index % 5 === 3 ? "wide" : "";
-        const tile = element("button", { type: "button", className: `tile ${size}` }, [
+      $("news").replaceChildren(...(items.length ? items.map((item) => {
+        // Blocos do mesmo tamanho; cada tema tem um tom.
+        const tile = element("button", { type: "button", className: "tile" }, [
           element("span", { className: "topic", textContent: item.topic }),
           element("span", { className: "headline", textContent: item.title }),
           element("span", { className: "muted", textContent: [item.source, item.when && ago(item.when)].filter(Boolean).join(" · ") })
@@ -386,6 +391,14 @@
     } else {
       RENDER[name](result.ok);
     }
+    markOverflow();
+  }
+
+  // Marca os painéis que ainda têm conteúdo para baixo.
+  function markOverflow() {
+    document.querySelectorAll(".side, #log").forEach((box) => {
+      box.classList.toggle("more", box.scrollTop + box.clientHeight < box.scrollHeight - 2);
+    });
   }
 
   function loadDashboard() {
@@ -408,12 +421,19 @@
     $("weekday").textContent = now.toLocaleDateString("pt-BR", { weekday: "long" });
   }
 
+  // "Quinta · 22 out 2026": o dia da semana sem "-feira" e o mês sem ponto.
+  function dateLine(date) {
+    const weekday = date.toLocaleDateString("pt-BR", { weekday: "long" }).split("-")[0];
+    const month = date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+    return `${weekday} · ${String(date.getDate()).padStart(2, "0")} ${month} ${date.getFullYear()}`;
+  }
+
   let shownDay = null;
 
   function tick() {
     const now = new Date();
     $("clock").textContent = now.toLocaleTimeString("pt-BR");
-    $("date").textContent = now.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+    $("date").textContent = dateLine(now);
 
     // O calendário só muda quando vira o dia.
     if (shownDay !== now.getDate()) {
@@ -426,6 +446,8 @@
   setInterval(tick, 1000);
   setInterval(loadDashboard, REFRESH_MINUTES * 60000);
   wide.addEventListener("change", loadDashboard);
+  window.addEventListener("resize", markOverflow);
+  document.querySelectorAll(".side, #log").forEach((box) => box.addEventListener("scroll", markOverflow));
   window.addEventListener("pywebviewready", loadDashboard);
 
   $("form").addEventListener("submit", (event) => {
