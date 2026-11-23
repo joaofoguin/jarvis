@@ -1,0 +1,6 @@
+# Dependências para migrar a voz do desktop para processamento 100% local.
+faster-whisper>=1.1,<2
+sounddevice>=0.5,<1
+numpy>=1.26,<3
+piper-tts>=1.2,<2
+openwakeword>=0.6,<1
