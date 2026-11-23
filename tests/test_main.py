@@ -9,7 +9,7 @@ from llm import LLMError
 def client(monkeypatch):
     queued = []
     monkeypatch.setattr(main, "enqueue_agent_command", queued.append)
-    monkeypatch.setattr(main, "ask_llm", lambda question, source: (f"IA: {question}", None))
+    monkeypatch.setattr(main, "ask_llm", lambda question, source, history=None: (f"IA: {question}", None))
     test_client = TestClient(main.app)
     test_client.queued = queued
     return test_client
@@ -49,7 +49,7 @@ def test_other_questions_go_to_ai(client):
 
 
 def test_ai_failure_gives_friendly_answer(client, monkeypatch):
-    def fail(question, source):
+    def fail(question, source, history=None):
         raise LLMError("cota esgotada")
 
     monkeypatch.setattr(main, "ask_llm", fail)
@@ -75,7 +75,7 @@ def test_queue_failure_gives_friendly_answer(client, monkeypatch):
 
 
 def test_action_chosen_by_ai_is_queued(client, monkeypatch):
-    monkeypatch.setattr(main, "ask_llm", lambda question, source: ("Certo, senhor.", "claude_code:criar hello.py"))
+    monkeypatch.setattr(main, "ask_llm", lambda question, source, history=None: ("Certo, senhor.", "claude_code:criar hello.py"))
 
     response = client.post("/jarvis", json={"question": "cria um hello world"})
 

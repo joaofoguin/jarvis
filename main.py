@@ -1,14 +1,19 @@
 import os
 import secrets
+import uuid
 import psycopg
 
+from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
-from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
-from db import enqueue_agent_command, finish_agent_command, list_pending_commands
+from db import (
+    chat_history, enqueue_agent_command, finish_agent_command, list_pending_commands, save_chat_messages, telemetry
+)
 from llm import DEEPSEEK_MODEL, LLMError, ask_llm
 from router import detect_command, is_allowed_command
 
@@ -48,14 +53,14 @@ def home():
 # PROCESSAMENTO DE PERGUNTAS
 # ============================================================
 
-def handle_question(question, source):
+def handle_question(question, source, history=None):
     """Comandos conhecidos vão direto para a fila; o resto vai para a IA, que pode escolher uma ação."""
 
     match = detect_command(question)
 
     if not match:
         try:
-            answer, command = ask_llm(question, source)
+            answer, command = ask_llm(question, source, history)
 
         except LLMError as error:
             print("ERRO NA IA:", repr(error))
@@ -245,15 +250,19 @@ def agent_status():
 # FILA DO AGENTE (protegida por token)
 # ============================================================
 
-def require_agent_token(authorization: str = Header(default="")):
-    expected = os.getenv("AGENT_TOKEN")
+def check_token(variable, authorization):
+    expected = os.getenv(variable)
 
-    # Sem token configurado, a fila fica fechada em vez de aberta para todos.
+    # Sem token configurado, a rota fica fechada em vez de aberta para todos.
     if not expected:
-        raise HTTPException(status_code=503, detail="AGENT_TOKEN não configurado")
+        raise HTTPException(status_code=503, detail=f"{variable} não configurado")
 
     if not secrets.compare_digest(authorization, f"Bearer {expected}"):
         raise HTTPException(status_code=401, detail="Token inválido")
+
+
+def require_agent_token(authorization: str = Header(default="")):
+    check_token("AGENT_TOKEN", authorization)
 
 
 class AgentCommand(BaseModel):
@@ -316,3 +325,59 @@ def complete_agent_command(command_id: int, request: CommandResult | None = None
         "command": row[1],
         "status": row[2]
     }
+
+
+# ============================================================
+# CHAT REMOTO (página /app, protegido por JARVIS_API_TOKEN)
+# ============================================================
+
+# Mensagens anteriores enviadas à IA, como no chat do notebook. Mais contexto custa mais tokens.
+CHAT_HISTORY_LIMIT = 6
+
+
+def require_api_token(authorization: str = Header(default="")):
+    check_token("JARVIS_API_TOKEN", authorization)
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+    conversation_id: uuid.UUID | None = None
+
+
+@app.post("/api/chat", dependencies=[Depends(require_api_token)])
+def chat(request: ChatRequest):
+    """Mesmo caminho da Alexa (roteador, IA, fila), com a conversa guardada no banco."""
+
+    conversation_id = str(request.conversation_id or uuid.uuid4())
+
+    # Sem banco, o JARVIS ainda responde; só perde o contexto da conversa.
+    try:
+        history = chat_history(conversation_id, CHAT_HISTORY_LIMIT) if request.conversation_id else []
+    except (psycopg.Error, RuntimeError) as error:
+        print("ERRO AO LER A CONVERSA:", repr(error))
+        history = []
+
+    answer = handle_question(request.message, "web", history)
+
+    try:
+        save_chat_messages(conversation_id, [("user", request.message), ("assistant", answer)])
+    except (psycopg.Error, RuntimeError) as error:
+        print("ERRO AO GUARDAR A CONVERSA:", repr(error))
+
+    return {"conversation_id": conversation_id, "answer": answer}
+
+
+@app.get("/api/telemetry", dependencies=[Depends(require_api_token)])
+def get_telemetry():
+    commands, (calls, prompt_tokens, completion_tokens) = telemetry()
+
+    return {
+        "commands": [
+            {"id": row[0], "command": row[1], "status": row[2], "result": row[3], "created_at": row[4].isoformat()}
+            for row in commands
+        ],
+        "usage_today": {"calls": calls, "prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}
+    }
+
+
+app.mount("/app", StaticFiles(directory=Path(__file__).parent / "web", html=True), name="app")

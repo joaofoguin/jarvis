@@ -10,7 +10,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-JARVIS_URL = "https://jarvis-one-opal-45.vercel.app"
+# A API que o agente consulta: a Vercel por padrão, ou a VPS se JARVIS_URL estiver no .env.
+JARVIS_URL = os.getenv("JARVIS_URL", "https://jarvis-one-opal-45.vercel.app").rstrip("/")
 
 AGENT_TOKEN = os.getenv("AGENT_TOKEN")
 

@@ -471,6 +471,13 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - Frases como "procure/baixe/leia X no Drive" são reconhecidas no `router.py`, sem IA. Editar passa pela IA, que preenche a ação e o texto.
 - A confirmação ("sim") virou genérica em `desktop/core.py` (`pending_action`): serve para o WhatsApp e para o Drive.
 
+### Atualização de 23/11/2026: chat remoto `/app` e VPS
+
+- A mesma API (`main.py`) serve a página `/app` (`web/index.html`), um chat HUD para navegador e celular. Ela usa `/api/chat`, que passa pelo mesmo `handle_question` da Alexa (roteador, IA, fila), e `/api/telemetry`, que mostra os últimos comandos da fila e o uso de IA do dia.
+- As rotas `/api/*` exigem `JARVIS_API_TOKEN`. As conversas ficam em `chat_messages` (`sql/chat_messages.sql`); só as 6 últimas mensagens vão para a IA.
+- A API também pode rodar numa VPS com Docker e Caddy (`docker-compose.vps.yml`, `README_VPS.md`). O agente usa `JARVIS_URL` para saber onde buscar a fila (padrão: Vercel).
+- A branch `feat/vps-core-foundation` tinha um segundo backend (`server/`) e uma página React. Eles foram unidos à API existente para não duplicar o roteador e a IA.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados

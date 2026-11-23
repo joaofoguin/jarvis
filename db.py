@@ -66,3 +66,63 @@ def finish_agent_command(command_id, status, result):
             conn.commit()
 
     return row
+
+
+def save_chat_messages(conversation_id, messages):
+    """Guarda as mensagens (role, content) de uma conversa do chat remoto."""
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(
+                "INSERT INTO chat_messages (conversation_id, role, content) VALUES (%s, %s, %s)",
+                [(conversation_id, role, content) for role, content in messages]
+            )
+            conn.commit()
+
+
+def chat_history(conversation_id, limit):
+    """Últimas mensagens da conversa, da mais antiga para a mais nova, no formato da IA."""
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT role, content FROM (
+                    SELECT id, role, content FROM chat_messages
+                    WHERE conversation_id = %s
+                    ORDER BY id DESC
+                    LIMIT %s
+                ) recent
+                ORDER BY id ASC
+                """,
+                (conversation_id, limit)
+            )
+
+            return [{"role": role, "content": content} for role, content in cur.fetchall()]
+
+
+def telemetry():
+    """Últimos comandos da fila e o uso de IA de hoje, para o painel remoto."""
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, command, status, result, created_at
+                FROM agent_commands
+                ORDER BY id DESC
+                LIMIT 8
+                """
+            )
+            commands = cur.fetchall()
+
+            cur.execute(
+                """
+                SELECT COUNT(*), COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0)
+                FROM ai_usage
+                WHERE created_at >= date_trunc('day', NOW())
+                """
+            )
+            usage = cur.fetchone()
+
+    return commands, usage
