@@ -1,18 +1,16 @@
+# A mesma API da Vercel (main.py), rodando numa VPS com HTTPS pelo Caddy.
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile.vps
+    build: .
     env_file:
       - .env.vps
     environment:
-      APP_ENV: production
-      AUTO_CREATE_SCHEMA: "false"
+      PORT: "8000"
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3

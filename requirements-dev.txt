@@ -1,3 +1,8 @@
 -r requirements.txt
 pytest
 httpx2
+# Usadas pelos módulos do notebook que os testes importam (sem chamar APIs reais).
+pillow
+fpdf2
+google-api-python-client
+google-auth-oauthlib

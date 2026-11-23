@@ -8,6 +8,7 @@
 - Toda chamada de IA registra tokens na tabela `ai_usage` (`sql/ai_usage.sql`). Mantenha esse registro em qualquer novo provedor.
 - As rotas da fila exigem `AGENT_TOKEN`. O agente fecha cada comando como `completed`, `failed` ou `rejected`.
 - Ações que a IA pode escolher ficam em `TOOLS` (`llm.py`) e viram comandos por `command_for_tool` (`router.py`). Tarefas `claude_code:` rodam só dentro de `JARVIS_WORKSPACE`, sem Bash.
+- O chat remoto (`web/index.html`, rota `/app`) usa `/api/chat` em `main.py`, que passa pelo mesmo `handle_question` da Alexa. Não crie um segundo backend.
 - A janela de chat (`desktop/`) reusa `router.py`, `llm.py` e as ações de `agent/agent.py`. Não duplique essa lógica.
 - Google (Agenda, Classroom, mural do Classroom e YouTube) é só leitura e só no notebook (`google_data.py`, `desktop/notices.py`). Telas automáticas nunca abrem o login do Google sozinhas. Nunca versione `credentials.json` nem `google_token*.json`.
 - O Google Drive (`drive_data.py`, login próprio "drive") busca, lê, baixa e edita só quando o usuário pede. As edições são fixas (acrescentar e substituir texto em Documentos Google, renomear) e sempre pedem um "sim" antes, como o WhatsApp.

@@ -10,5 +10,3 @@ __pycache__/
 .pytest_cache/
 credentials.json
 google_token*.json
-web/node_modules/
-web/dist/
