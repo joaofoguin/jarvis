@@ -162,6 +162,19 @@ def safe_name(name):
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", name).strip(" .") or "arquivo"
 
 
+def free_path(path):
+    """O caminho, ou "nome (2).ext", "nome (3).ext"... se já existir: baixar nunca apaga um arquivo."""
+
+    number = 2
+    candidate = path
+
+    while candidate.exists():
+        candidate = path.with_name(f"{path.stem} ({number}){path.suffix}")
+        number += 1
+
+    return candidate
+
+
 def download(name, request="", account_services=None):
     from googleapiclient.http import MediaIoBaseDownload
 
@@ -180,7 +193,7 @@ def download(name, request="", account_services=None):
 
     folder = downloads_folder()
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / filename
+    path = free_path(folder / filename)
     buffer = io.BytesIO()
     downloader = MediaIoBaseDownload(buffer, media)
     done = False
@@ -204,7 +217,7 @@ def edit_question(action, file, text, new_text):
         return f"Acrescentar ao final de \"{file['name']}\" o texto: \"{text}\"?"
 
     if action == "substituir":
-        return f"Trocar \"{text}\" por \"{new_text}\" em \"{file['name']}\"?"
+        return f"Trocar todas as ocorrências de \"{text}\" por \"{new_text}\" em \"{file['name']}\"?"
 
     return f"Renomear \"{file['name']}\" para \"{text}\"?"
 

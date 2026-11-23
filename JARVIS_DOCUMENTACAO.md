@@ -478,6 +478,15 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - A API também pode rodar numa VPS com Docker e Caddy (`docker-compose.vps.yml`, `README_VPS.md`). O agente usa `JARVIS_URL` para saber onde buscar a fila (padrão: Vercel).
 - A branch `feat/vps-core-foundation` tinha um segundo backend (`server/`) e uma página React. Eles foram unidos à API existente para não duplicar o roteador e a IA.
 
+### Atualização de 23/11/2026: correções da revisão geral
+
+- **Login do Google vencido:** apps do Google Cloud em modo de teste têm o login renovável por só 7 dias. Agora, quando o Google recusa o token salvo, o chat abre o login de novo sozinho; o painel em tela cheia e os avisos do mural nunca abrem o navegador e mostram "precisa ser refeito, peça pelo chat" (`interactive=False` em `google_data.get_credentials`).
+- **Agente:** se a ação rodou mas o aviso para a API falhou (rede), a próxima consulta só reenvia o resultado, sem repetir a ação (antes uma tarefa do Claude Code podia rodar duas vezes).
+- **WhatsApp:** o Enter só vai para a janela do app (título "WhatsApp"), nunca para uma aba do navegador com WhatsApp no título, e a janela é conferida de novo logo antes do Enter.
+- **Drive:** baixar nunca sobrescreve um arquivo (vira "nome (2).ext"); a confirmação de substituir diz que troca todas as ocorrências.
+- **Chat do notebook:** um erro inesperado aparece no chat em vez de sumir e não desliga a voz. Uma linha quebrada no histórico não derruba o feed.
+- **Testes:** rodam fora da pasta do projeto e sem as variáveis do `.env`, então nunca chegam ao Google, iCloud, Neon ou DeepSeek reais, mesmo no notebook configurado.
+
 ## 13. Histórico de resultados e problemas
 
 ### Resultados confirmados

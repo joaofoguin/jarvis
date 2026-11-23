@@ -55,7 +55,15 @@ def token_file(account, kind=""):
     return "google_token_" + re.sub(r"[^a-zA-Z0-9]+", "_", account) + suffix + ".json"
 
 
-def get_credentials(account, scopes=SCOPES, kind=""):
+class LoginNeeded(RuntimeError):
+    pass
+
+
+def get_credentials(account, scopes=SCOPES, kind="", interactive=True):
+    """Credenciais da conta. Com interactive=False (telas automáticas), nunca abre o navegador:
+    se o login precisar ser refeito, levanta LoginNeeded."""
+
+    from google.auth.exceptions import RefreshError
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
@@ -70,8 +78,17 @@ def get_credentials(account, scopes=SCOPES, kind=""):
         return creds
 
     if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-    else:
+        try:
+            creds.refresh(Request())
+
+        except RefreshError:
+            # Acesso revogado ou senha trocada: o token salvo não serve mais.
+            creds = None
+
+    if not (creds and creds.valid):
+        if not interactive:
+            raise LoginNeeded(f"O login do Google de {account or 'sua conta'} precisa ser refeito. Peça pelo chat.")
+
         if not os.path.exists(CREDENTIALS_FILE):
             raise RuntimeError(f"Arquivo {CREDENTIALS_FILE} não encontrado. Veja o guia de configuração do Google.")
 
@@ -90,7 +107,7 @@ def get_credentials(account, scopes=SCOPES, kind=""):
     return creds
 
 
-def services(name, version, request="", only=None):
+def services(name, version, request="", only=None, interactive=True):
     """Retorna [(conta, serviço)] para cada conta (ou só as de `only`). Se o login falhar, o serviço é o erro."""
 
     from googleapiclient.discovery import build
@@ -99,7 +116,7 @@ def services(name, version, request="", only=None):
 
     for account in only or accounts(request):
         try:
-            result.append((account, build(name, version, credentials=get_credentials(account), cache_discovery=False)))
+            result.append((account, build(name, version, credentials=get_credentials(account, interactive=interactive), cache_discovery=False)))
 
         except Exception as error:
             result.append((account, error))

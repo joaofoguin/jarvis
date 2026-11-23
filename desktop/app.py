@@ -190,6 +190,15 @@ class Jarvis:
         self.answer(text, say=self.voice.say)
 
     def answer(self, text, say=None):
+        try:
+            self.reply(text, say)
+
+        except Exception as error:
+            # Um erro inesperado aparece no chat em vez de sumir, e não derruba a thread da voz.
+            print("ERRO AO RESPONDER:", repr(error))
+            self.write("jarvis", f"Desculpe, senhor. Algo deu errado: {error}")
+
+    def reply(self, text, say):
         answer, task = reply_to(text, list(self.history))
         self.history += [{"role": "user", "content": text}, {"role": "assistant", "content": answer}]
         self.write("jarvis", answer)

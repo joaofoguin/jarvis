@@ -170,3 +170,15 @@ def test_rename_any_file():
 
     assert drive.log == [("update", "p1", {"name": "Relatório 2025.pdf"})]
     assert result == "Pronto, senhor. Relatório antigo.pdf agora se chama Relatório 2025.pdf."
+
+
+def test_download_never_overwrites_an_existing_file(tmp_path):
+    (tmp_path / "Notas.docx").write_bytes(b"antigo")
+    (tmp_path / "Notas (2).docx").write_bytes(b"antigo 2")
+
+    assert drive_data.free_path(tmp_path / "Notas.docx") == tmp_path / "Notas (3).docx"
+    assert drive_data.free_path(tmp_path / "Novo.docx") == tmp_path / "Novo.docx"
+
+
+def test_replace_question_says_every_occurrence_changes():
+    assert "todas as ocorrências" in drive_data.edit_question("substituir", DOC, "2025", "2026")

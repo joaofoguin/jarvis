@@ -27,12 +27,18 @@ CLAUDE_CODE_TOOLS = "Read,Edit,Write,Glob,Grep"
 # Tarefas do Claude Code em andamento, para não repetir enquanto o comando segue pendente.
 running_ids = set()
 
+# Comandos já executados cujo resultado ainda não chegou à API (a rede caiu na hora de avisar).
+# Na próxima consulta, só o aviso é repetido; a ação não roda de novo.
+unreported = {}
+
 
 def auth_headers():
     return {"Authorization": f"Bearer {AGENT_TOKEN}"}
 
 
 def finish_command(command_id, status, result):
+    unreported[command_id] = (status, result)
+
     response = requests.post(
         f"{JARVIS_URL}/agent/commands/{command_id}/complete",
         json={"status": status, "result": result},
@@ -41,6 +47,7 @@ def finish_command(command_id, status, result):
     )
 
     response.raise_for_status()
+    unreported.pop(command_id, None)
 
     if response.json().get("success"):
         print(f"[COMANDO {status.upper()}] ID={command_id} | {result}")
@@ -128,6 +135,10 @@ def call_claude_code(task):
 
 
 def execute_command(command_id, command_text):
+
+    if command_id in unreported:
+        finish_command(command_id, *unreported[command_id])
+        return
 
     if command_text.startswith(CLAUDE_CODE_PREFIX):
 

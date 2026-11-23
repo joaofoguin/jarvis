@@ -196,10 +196,10 @@ def run_google(function, *args):
         return f"Desculpe, senhor. Não consegui consultar o Google: {error}"
 
 
-def agenda(days, text):
+def agenda(days, text, account_services=None):
     """Agenda do Google e, se o iCloud estiver configurado, o calendário do iPhone."""
 
-    result = run_google(google_data.agenda_summary, days, None, text)
+    result = run_google(google_data.agenda_summary, days, account_services, text)
 
     if icloud_data.configured():
         result += "\n\n" + run_icloud(icloud_data.agenda_summary, days)

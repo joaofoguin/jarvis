@@ -136,3 +136,14 @@ def test_only_web_links_are_opened(app, jarvis, monkeypatch):
     jarvis.open_link("file:///C:/Windows/System32/calc.exe")
 
     assert opened == ["https://news.google.com/x"]
+
+
+def test_unexpected_error_shows_in_chat_instead_of_vanishing(app, jarvis, monkeypatch):
+    def broken(text, history):
+        raise AttributeError("'NoneType' object has no attribute 'get'")
+
+    monkeypatch.setattr(app, "reply_to", broken)
+
+    jarvis.answer_aloud("oi")
+
+    assert "Algo deu errado" in jarvis.chat.calls[-1]

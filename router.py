@@ -125,7 +125,11 @@ def claude_code_command(task):
 
 
 def agenda_command(days):
-    days = min(max(int(days), 1), 7)
+    try:
+        days = min(max(int(days), 1), 7)
+    except (TypeError, ValueError):
+        days = 1
+
     return f"{GOOGLE_AGENDA_PREFIX}{days}", GOOGLE_ANSWER
 
 
@@ -247,6 +251,10 @@ def memory_args(command):
 
 def command_for_tool(name, arguments):
     """Converte uma ferramenta escolhida pela IA em (comando, resposta falada), ou None."""
+
+    # A IA pode mandar argumentos fora do formato (null, lista); nesse caso valem os padrões.
+    if not isinstance(arguments, dict):
+        arguments = {}
 
     if name == "ver_agenda":
         return agenda_command(arguments.get("dias", 1))
