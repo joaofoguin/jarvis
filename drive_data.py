@@ -217,7 +217,7 @@ def edit_question(action, file, text, new_text):
         return f"Acrescentar ao final de \"{file['name']}\" o texto: \"{text}\"?"
 
     if action == "substituir":
-        return f"Trocar \"{text}\" por \"{new_text}\" em \"{file['name']}\"?"
+        return f"Trocar todas as ocorrências de \"{text}\" por \"{new_text}\" em \"{file['name']}\"?"
 
     return f"Renomear \"{file['name']}\" para \"{text}\"?"
 

@@ -1,4 +1,5 @@
 from datetime import datetime
+import pytest
 
 import google_data
 
@@ -174,7 +175,7 @@ def test_failed_login_does_not_hide_other_accounts():
 def test_services_keeps_going_when_one_login_fails(monkeypatch):
     monkeypatch.setenv("GOOGLE_ACCOUNTS", "a@gmail.com,b@uenp.edu.br")
 
-    def credentials(account):
+    def credentials(account, **kwargs):
         if account == "b@uenp.edu.br":
             raise RuntimeError("bloqueado")
         return None
@@ -318,3 +319,49 @@ def test_classroom_since_keeps_only_recent_pending_work():
     text = google_data.classroom_summary([(None, service)], since=datetime(2026, 9, 22, tzinfo=timezone.utc))
 
     assert text.splitlines() == ["Atividades pendentes no Classroom:", "- Relatório novo (Redes, sem prazo)"]
+
+
+class ExpiredCredentials:
+    valid = False
+    expired = True
+    refresh_token = "antigo"
+
+    def refresh(self, request):
+        from google.auth.exceptions import RefreshError
+
+        # O Google recusa tokens de apps em teste depois de 7 dias.
+        raise RefreshError("invalid_grant: Token has been expired or revoked.")
+
+    def to_json(self):
+        return "{}"
+
+
+def revoked_token(monkeypatch, tmp_path):
+    token = tmp_path / "token.json"
+    token.write_text("{}")
+    monkeypatch.setattr(google_data, "token_file", lambda account, kind="": str(token))
+    monkeypatch.setattr("google.oauth2.credentials.Credentials.from_authorized_user_file", lambda path, scopes: ExpiredCredentials())
+
+
+def test_revoked_token_never_opens_login_from_automatic_screens(monkeypatch, tmp_path):
+    revoked_token(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file",
+        lambda *args: pytest.fail("não deveria abrir o login")
+    )
+
+    with pytest.raises(google_data.LoginNeeded):
+        google_data.get_credentials("eu@gmail.com", interactive=False)
+
+
+def test_revoked_token_logs_in_again_from_the_chat(monkeypatch, tmp_path):
+    revoked_token(monkeypatch, tmp_path)
+    monkeypatch.setattr(google_data, "CREDENTIALS_FILE", str(tmp_path / "token.json"))
+
+    class Flow:
+        def run_local_server(self, **kwargs):
+            return ExpiredCredentials()
+
+    monkeypatch.setattr("google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file", lambda *args: Flow())
+
+    assert isinstance(google_data.get_credentials("eu@gmail.com"), ExpiredCredentials)

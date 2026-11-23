@@ -109,3 +109,36 @@ def test_background_run_reports_and_clears(finished, monkeypatch):
 
     assert finished == [(9, "completed", "feito")]
     assert agent.running_ids == set()
+
+
+def test_action_is_not_repeated_when_reporting_the_result_fails(monkeypatch):
+    opened = []
+    sent = []
+    monkeypatch.setattr(agent.subprocess, "Popen", opened.append)
+    monkeypatch.setattr(agent, "unreported", {})
+
+    def post(url, json, headers, timeout):
+        sent.append(json)
+        if len(sent) == 1:
+            raise agent.requests.ConnectionError("sem rede")
+
+        class Response:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"success": True}
+
+        return Response()
+
+    monkeypatch.setattr(agent.requests, "post", post)
+
+    with pytest.raises(agent.requests.ConnectionError):
+        agent.execute_command(9, "open_app:notepad")
+
+    # O comando continua pendente na API; na próxima consulta só o resultado é reenviado.
+    agent.execute_command(9, "open_app:notepad")
+
+    assert len(opened) == 1
+    assert sent == [{"status": "completed", "result": "Bloco de Notas aberto"}] * 2
+    assert agent.unreported == {}

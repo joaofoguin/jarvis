@@ -20,6 +20,10 @@ def isolated_memory(monkeypatch, tmp_path):
     # as chaves reais (iCloud, DeepSeek, banco). Cada teste que precisa de uma define a sua.
     for name in [
         "DEEPSEEK_API_KEY", "POSTGRES_URL", "AGENT_TOKEN", "JARVIS_API_TOKEN", "ICLOUD_EMAIL", "ICLOUD_APP_PASSWORD",
-        "GOOGLE_ACCOUNTS", "YOUTUBE_ACCOUNT", "JARVIS_WORKSPACE", "JARVIS_BROWSER"
+        "GOOGLE_ACCOUNTS", "YOUTUBE_ACCOUNT", "JARVIS_WORKSPACE", "JARVIS_BROWSER", "JARVIS_URL"
     ]:
         monkeypatch.delenv(name, raising=False)
+
+    # Fora da pasta do projeto, onde ficam credentials.json e os google_token*.json reais.
+    monkeypatch.setenv("JARVIS_DOWNLOADS", str(tmp_path / "downloads"))
+    monkeypatch.chdir(tmp_path)

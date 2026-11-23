@@ -18,6 +18,10 @@ OPEN_TIMEOUT = 15
 # Depois que o app aparece, a conversa ainda leva um instante para carregar o texto.
 CHAT_DELAY = 2
 
+# O título da janela do app é só "WhatsApp" (às vezes com as não lidas na frente, "(3) WhatsApp").
+# Abas do navegador ("WhatsApp - Microsoft Edge") não contam.
+APP_TITLE = re.compile(r"^(\(\d+\) )?WhatsApp$")
+
 
 def phone_digits(phone):
     """Número só com dígitos e código do país; números sem "+" e com DDD ganham o 55 do Brasil."""
@@ -61,6 +65,10 @@ def foreground_title():
     return title.value
 
 
+def app_in_front():
+    return bool(APP_TITLE.match(foreground_title().strip()))
+
+
 def send(phone, message):
     import keyboard
 
@@ -69,13 +77,18 @@ def send(phone, message):
     # Só aperta Enter com o WhatsApp na frente, para nunca enviar Enter a outro programa.
     deadline = time.monotonic() + OPEN_TIMEOUT
 
-    while "WhatsApp" not in foreground_title():
+    while not app_in_front():
         if time.monotonic() > deadline:
             return "Abri a conversa, mas o WhatsApp não ficou na frente, então não apertei Enter. Confira e envie."
 
         time.sleep(0.5)
 
     time.sleep(CHAT_DELAY)
+
+    # Confere de novo: na espera, outra janela pode ter ido para a frente.
+    if not app_in_front():
+        return "Abri a conversa, mas outra janela ficou na frente, então não apertei Enter. Confira e envie."
+
     keyboard.send("enter")
 
     return f"Mensagem enviada para +{phone} pelo WhatsApp: \"{message}\""

@@ -77,7 +77,7 @@ def test_dashboard_classroom_reads_only_chosen_accounts_from_last_month(monkeypa
     monkeypatch.setattr(dashboard, "google_ready", lambda accounts: True)
     asked = {}
 
-    def services(name, version, only):
+    def services(name, version, only, interactive):
         asked["only"] = only
         return "serviços"
 

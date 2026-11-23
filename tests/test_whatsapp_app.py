@@ -60,3 +60,31 @@ def test_send_never_presses_enter_in_another_window(desktop, monkeypatch):
 
     assert "enter" not in desktop
     assert "não apertei Enter" in result
+
+
+@pytest.mark.parametrize("title", ["WhatsApp - Microsoft Edge", "(2) WhatsApp - Google Chrome", "Conversa sobre WhatsApp.docx - Word"])
+def test_browser_tab_or_other_window_with_whatsapp_in_title_is_not_the_app(desktop, monkeypatch, title):
+    monkeypatch.setattr(whatsapp_app, "foreground_title", lambda: title)
+    monkeypatch.setattr(whatsapp_app, "OPEN_TIMEOUT", -1)
+
+    whatsapp_app.send("5514996872005", "oi")
+
+    assert "enter" not in desktop
+
+
+def test_app_with_unread_count_in_title_is_accepted(desktop, monkeypatch):
+    monkeypatch.setattr(whatsapp_app, "foreground_title", lambda: "(3) WhatsApp")
+
+    whatsapp_app.send("5514996872005", "oi")
+
+    assert desktop[-1] == "enter"
+
+
+def test_no_enter_when_another_window_takes_the_front_during_the_wait(desktop, monkeypatch):
+    titles = iter(["WhatsApp", "Bloco de Notas"])
+    monkeypatch.setattr(whatsapp_app, "foreground_title", lambda: next(titles))
+
+    result = whatsapp_app.send("5514996872005", "oi")
+
+    assert "enter" not in desktop
+    assert "outra janela" in result

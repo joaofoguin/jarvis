@@ -69,7 +69,7 @@ def test_history_shows_only_the_latest_conversations():
 
 def test_agenda_never_opens_google_login_from_the_dashboard(monkeypatch):
     monkeypatch.setattr(dashboard.google_data, "accounts", lambda: ["eu@gmail.com"])
-    monkeypatch.setattr(dashboard.core, "agenda", lambda days, text: pytest.fail("não deveria consultar"))
+    monkeypatch.setattr(dashboard.core, "agenda", lambda *args: pytest.fail("não deveria consultar"))
 
     assert "minha agenda" in dashboard.agenda()
 
@@ -86,3 +86,26 @@ def test_invalid_news_topics_are_refused(topics):
 
 def test_news_topics_are_cleaned_and_deduplicated():
     assert settings.save({"news_topics": ["  vagas   de TI ", "vagas de TI", "Bauru"]})["news_topics"] == ["vagas de TI", "Bauru"]
+
+
+def test_broken_history_line_is_skipped():
+    dashboard.log(datetime(2026, 10, 22, 9, 0), "pedido bom", "ok")
+    with dashboard.history_path().open("a", encoding="utf-8") as file:
+        file.write('{"when": "2026-10-22T09:05", "text": "cort\n')
+
+    assert dashboard.history()[0]["title"] == "pedido bom"
+
+
+def test_dashboard_agenda_never_opens_the_login_even_when_it_expired(monkeypatch):
+    monkeypatch.setattr(dashboard, "google_ready", lambda accounts=None: True)
+    asked = {}
+
+    def services(name, version, interactive=True):
+        asked["interactive"] = interactive
+        return []
+
+    monkeypatch.setattr(dashboard.google_data, "services", services)
+    monkeypatch.setattr(dashboard.core, "agenda", lambda days, text, account_services: "Agenda")
+
+    assert dashboard.agenda() == "Agenda"
+    assert asked == {"interactive": False}

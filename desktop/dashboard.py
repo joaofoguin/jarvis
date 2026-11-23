@@ -58,8 +58,12 @@ def history():
     conversations = []
 
     for line in path.read_text(encoding="utf-8").splitlines()[-HISTORY_READ:]:
-        entry = json.loads(line)
-        when = datetime.fromisoformat(entry["when"])
+        # Uma linha quebrada (o app fechou no meio da escrita) não derruba o feed inteiro.
+        try:
+            entry = json.loads(line)
+            when = datetime.fromisoformat(entry["when"])
+        except (ValueError, KeyError, TypeError):
+            continue
 
         if conversations and when - datetime.fromisoformat(conversations[-1]["end"]) <= CONVERSATION_GAP:
             conversations[-1]["entries"].append(entry)
@@ -86,7 +90,8 @@ def agenda():
     if not google_ready():
         return "Peça \"minha agenda\" no chat uma vez para entrar no Google."
 
-    return core.agenda(1, "")
+    # Tela automática: se o login expirou, avisa em vez de abrir o navegador.
+    return core.agenda(1, "", google_data.services("calendar", "v3", interactive=False))
 
 
 def classroom():
@@ -97,7 +102,9 @@ def classroom():
 
     since = datetime.now().astimezone() - timedelta(days=CLASSROOM_DAYS)
     return core.run_google(
-        lambda: google_data.classroom_summary(google_data.services("classroom", "v1", only=accounts), "", since)
+        lambda: google_data.classroom_summary(
+            google_data.services("classroom", "v1", only=accounts, interactive=False), "", since
+        )
     )
 
 

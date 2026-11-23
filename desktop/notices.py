@@ -42,7 +42,7 @@ def connect(accounts):
 def service(account):
     from googleapiclient.discovery import build
 
-    return build("classroom", "v1", credentials=google_data.get_credentials(account, SCOPES, KIND), cache_discovery=False)
+    return build("classroom", "v1", credentials=google_data.get_credentials(account, SCOPES, KIND, interactive=False), cache_discovery=False)
 
 
 def latest(classroom):

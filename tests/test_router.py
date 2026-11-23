@@ -161,3 +161,9 @@ def test_drive_edits_need_text_and_a_known_action():
     assert command_for_tool("editar_arquivo_drive", {"arquivo": "Ata", "acao": "acrescentar", "texto": ""}) is None
     assert command_for_tool("editar_arquivo_drive", {"arquivo": "Ata", "acao": "apagar", "texto": "x"}) is None
     assert drive_args(command_for_tool("baixar_arquivo_drive", {"arquivo": "Ata"})[0])[0] == "baixar"
+
+
+def test_tool_arguments_out_of_format_use_defaults():
+    assert command_for_tool("ver_agenda", None) == ("google_agenda:1", "Um momento, senhor. Estou consultando.")
+    assert command_for_tool("ver_agenda", {"dias": "amanhã"})[0] == "google_agenda:1"
+    assert command_for_tool("enviar_whatsapp", ["Amor", "oi"]) is None

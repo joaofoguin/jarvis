@@ -147,3 +147,4 @@ def test_only_web_links_are_opened(app, jarvis, monkeypatch):
     jarvis.open_link("file:///C:/Windows/System32/calc.exe")
 
     assert opened == ["https://news.google.com/x"]
+

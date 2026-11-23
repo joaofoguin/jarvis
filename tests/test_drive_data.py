@@ -178,3 +178,8 @@ def test_rename_any_file():
 
     assert drive.log == [("update", "p1", {"name": "Relatório 2025.pdf"})]
     assert result == "Pronto, senhor. Relatório antigo.pdf agora se chama Relatório 2025.pdf."
+
+
+
+def test_replace_question_says_every_occurrence_changes():
+    assert "todas as ocorrências" in drive_data.edit_question("substituir", DOC, "2025", "2026")
