@@ -93,10 +93,17 @@ def find(name, account_services):
             errors.append(login_error(account, drive))
             continue
 
-        files = drive.files().list(
-            q=query_for(name), orderBy="modifiedTime desc", pageSize=MAX_FILES,
-            fields="files(id, name, mimeType, modifiedTime, webViewLink)"
-        ).execute().get("files", [])
+        # Uma conta com problema (rede, permissão) não esconde o que as outras acharam.
+        try:
+            files = drive.files().list(
+                q=query_for(name), orderBy="modifiedTime desc", pageSize=MAX_FILES,
+                fields="files(id, name, mimeType, modifiedTime, webViewLink)"
+            ).execute().get("files", [])
+
+        except Exception as error:
+            errors.append(f"Não consegui buscar em {account or 'sua conta'}: {short_error(error)}")
+            continue
+
         found += [(account, drive, docs, file) for file in files]
 
     if not found and errors:

@@ -148,3 +148,26 @@ def test_only_web_links_are_opened(app, jarvis, monkeypatch):
 
     assert opened == ["https://news.google.com/x"]
 
+
+
+def test_voice_and_chat_requests_do_not_interleave(app, jarvis, monkeypatch):
+    import threading
+    import time
+
+    inside = []
+    overlaps = []
+
+    def slow_reply(text, history):
+        if inside:
+            overlaps.append(text)
+        inside.append(text)
+        time.sleep(0.05)
+        inside.remove(text)
+        return "ok", None
+
+    monkeypatch.setattr(app, "reply_to", slow_reply)
+    threads = [threading.Thread(target=jarvis.answer, args=(text,)) for text in ("sim", "manda oi")]
+    [thread.start() for thread in threads]
+    [thread.join() for thread in threads]
+
+    assert overlaps == []

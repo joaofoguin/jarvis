@@ -169,6 +169,11 @@ def agenda_summary(days, calendar_list=None):
 
         for event in found:
             component = event.icalendar_component
+
+            # Um evento sem início (criado por outro app) fica de fora, em vez de derrubar o resumo.
+            if component.get("dtstart") is None:
+                continue
+
             events.append(format_event(component["dtstart"].dt, str(component.get("summary", "(sem título)"))))
 
     period = "hoje" if days == 1 else f"nos próximos {days} dias"

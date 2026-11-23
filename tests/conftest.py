@@ -27,3 +27,5 @@ def isolated_memory(monkeypatch, tmp_path):
     # Fora da pasta do projeto, onde ficam credentials.json e os google_token*.json reais.
     monkeypatch.setenv("JARVIS_DOWNLOADS", str(tmp_path / "downloads"))
     monkeypatch.chdir(tmp_path)
+    import google_data
+    monkeypatch.setattr(google_data, "FOLDER", tmp_path)

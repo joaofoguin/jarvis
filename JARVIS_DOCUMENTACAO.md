@@ -485,6 +485,8 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - **WhatsApp:** o Enter só vai para a janela do app (título "WhatsApp"), nunca para uma aba do navegador com WhatsApp no título, e a janela é conferida de novo logo antes do Enter.
 - **Drive:** baixar nunca sobrescreve um arquivo (vira "nome (2).ext"); a confirmação de substituir diz que troca todas as ocorrências.
 - **Chat do notebook:** um erro inesperado aparece no chat em vez de sumir e não desliga a voz. Uma linha quebrada no histórico não derruba o feed.
+- **Arquivos do Google:** `credentials.json` e os `google_token*.json` ficam sempre na pasta do projeto, mesmo abrindo o JARVIS por um atalho; `GOOGLE_CREDENTIALS` do `.env` passou a valer.
+- **Robustez:** uma conta com erro não para a busca do Drive nas outras; evento do iCloud sem data é ignorado; vídeos privados ou removidos não quebram o resumo do YouTube; voz e chat respondem um pedido de cada vez, então a confirmação pendente nunca se mistura.
 - **Testes:** rodam fora da pasta do projeto e sem as variáveis do `.env`, então nunca chegam ao Google, iCloud, Neon ou DeepSeek reais, mesmo no notebook configurado.
 
 ## 13. Histórico de resultados e problemas
