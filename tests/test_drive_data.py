@@ -135,6 +135,14 @@ def test_download_exports_google_docs_as_word(monkeypatch, tmp_path):
     assert result == f"Baixei Relatório: Redes/2026 em {path}"
 
 
+def test_download_never_overwrites_an_existing_file(tmp_path):
+    (tmp_path / "notas.txt").write_text("antigo")
+    (tmp_path / "notas (2).txt").write_text("antigo")
+
+    assert drive_data.free_path(tmp_path / "notas.txt") == tmp_path / "notas (3).txt"
+    assert drive_data.free_path(tmp_path / "novo.txt") == tmp_path / "novo.txt"
+
+
 def test_text_edits_only_on_google_docs():
     drive_data.check_edit("acrescentar", DOC)
     drive_data.check_edit("renomear", PDF)
