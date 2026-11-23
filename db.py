@@ -2,6 +2,10 @@ import os
 import psycopg
 
 
+# "Hoje" no painel remoto começa à meia-noite daqui, não à meia-noite UTC do banco.
+TIMEZONE = os.getenv("JARVIS_TIMEZONE", "America/Sao_Paulo")
+
+
 def get_connection():
     database_url = os.getenv("POSTGRES_URL")
 
@@ -120,8 +124,9 @@ def telemetry():
                 """
                 SELECT COUNT(*), COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0)
                 FROM ai_usage
-                WHERE created_at >= date_trunc('day', NOW())
-                """
+                WHERE created_at >= date_trunc('day', NOW() AT TIME ZONE %s) AT TIME ZONE %s
+                """,
+                (TIMEZONE, TIMEZONE)
             )
             usage = cur.fetchone()
 
