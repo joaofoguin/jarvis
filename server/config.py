@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-flash"
     database_url: str = Field(default="", validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL"))
     jarvis_api_token: str = ""
+    cors_origins: str = ""
     auto_create_schema: bool = True
     deepseek_timeout_seconds: float = 45.0
     max_tool_rounds: int = 4

@@ -8,10 +8,11 @@ Esta evolução adiciona um backend preparado para VPS sem remover o backend leg
 - Cliente DeepSeek com Function Calling.
 - Persistência de conversas e mensagens em PostgreSQL.
 - Ferramentas internas para criar e listar tarefas.
-- Registro de consumo de tokens na tabela `ai_usage`.
+- Registro de consumo de tokens por etapa na tabela `ai_usage`.
 - Autenticação Bearer nos endpoints privados.
 - Health checks e configuração Docker.
 - HTTPS opcional com Caddy.
+- Interface web/PWA inicial em `web/`, responsiva e utilizável no celular.
 
 O núcleo ainda **não** controla o Windows, não envia WhatsApp e não acessa contas Google/Apple/Microsoft. Essas ações serão conectadas por módulos e agentes autenticados nas próximas etapas.
 
@@ -22,9 +23,7 @@ O núcleo ainda **não** controla o Windows, não envia WhatsApp e não acessa c
 - A configuração aceita `DATABASE_URL`; também pode ser preenchida com a antiga `POSTGRES_URL`.
 - As tabelas novas usam prefixo `jarvis_`; não alteram a fila legada.
 
-## Rodar localmente no Windows
-
-No PowerShell, na raiz do repositório:
+## Backend local no Windows
 
 ```powershell
 py -3.12 -m venv .venv-vps
@@ -48,7 +47,18 @@ uvicorn vps_main:app --reload --host 127.0.0.1 --port 8000
 
 Verifique `GET /health/live` e `GET /health/ready` em `http://127.0.0.1:8000`.
 
-Exemplo de conversa:
+## Interface web/PWA
+
+```powershell
+cd web
+Copy-Item .env.example .env.local
+npm install
+npm run dev
+```
+
+Defina `VITE_JARVIS_API_URL` com a URL da API. Para produção, configure `CORS_ORIGINS` no backend com a origem exata do site. O token Bearer digitado na interface fica apenas na memória da aba; não é salvo em localStorage. A PWA ainda não implementa login OAuth nem sincronização offline de conversas.
+
+Exemplo de chamada direta à API:
 
 ```powershell
 $headers = @{ Authorization = "Bearer SEU_JARVIS_API_TOKEN" }

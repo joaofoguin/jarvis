@@ -1,6 +1,7 @@
 import secrets
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from server.config import Settings, get_settings
@@ -24,6 +25,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await engine.dispose()
 
     app = FastAPI(title=app_settings.app_name, version="2.0.0", lifespan=lifespan)
+    origins = [item.strip() for item in app_settings.cors_origins.split(",") if item.strip()]
+    if origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type"],
+        )
     app.state.settings = app_settings
     app.state.session_factory = session_factory
 
