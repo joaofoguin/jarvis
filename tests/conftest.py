@@ -16,14 +16,14 @@ def isolated_memory(monkeypatch, tmp_path):
     monkeypatch.setenv("JARVIS_HISTORY", str(tmp_path / "historico.jsonl"))
     monkeypatch.setenv("JARVIS_NOTICES", str(tmp_path / "avisos_vistos.json"))
 
-    # Nem as contas reais: sem as variáveis do .env e fora da pasta do projeto, onde ficam
-    # credentials.json e os google_token*.json. Assim nenhum teste chega ao Google, ao iCloud,
-    # ao Neon ou ao DeepSeek, mesmo no notebook já configurado.
-    for name in (
-        "ICLOUD_EMAIL", "ICLOUD_APP_PASSWORD", "GOOGLE_ACCOUNTS", "YOUTUBE_ACCOUNT", "POSTGRES_URL",
-        "DEEPSEEK_API_KEY", "AGENT_TOKEN", "JARVIS_API_TOKEN", "JARVIS_WORKSPACE", "JARVIS_URL"
-    ):
+    # O .env do notebook é carregado ao importar o agente; sem isto, um teste poderia usar
+    # as chaves reais (iCloud, DeepSeek, banco). Cada teste que precisa de uma define a sua.
+    for name in [
+        "DEEPSEEK_API_KEY", "POSTGRES_URL", "AGENT_TOKEN", "JARVIS_API_TOKEN", "ICLOUD_EMAIL", "ICLOUD_APP_PASSWORD",
+        "GOOGLE_ACCOUNTS", "YOUTUBE_ACCOUNT", "JARVIS_WORKSPACE", "JARVIS_BROWSER", "JARVIS_URL"
+    ]:
         monkeypatch.delenv(name, raising=False)
 
+    # Fora da pasta do projeto, onde ficam credentials.json e os google_token*.json reais.
     monkeypatch.setenv("JARVIS_DOWNLOADS", str(tmp_path / "downloads"))
     monkeypatch.chdir(tmp_path)

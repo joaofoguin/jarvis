@@ -163,7 +163,7 @@ def safe_name(name):
 
 
 def free_path(path):
-    """O caminho, ou "nome (2).ext", "nome (3).ext"... se já existir: baixar nunca apaga um arquivo."""
+    """O caminho pedido ou, se já existir, "nome (2).ext", "nome (3).ext"... Nunca sobrescreve um arquivo."""
 
     number = 2
     candidate = path

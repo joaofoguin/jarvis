@@ -257,7 +257,8 @@ def check_token(variable, authorization):
     if not expected:
         raise HTTPException(status_code=503, detail=f"{variable} não configurado")
 
-    if not secrets.compare_digest(authorization, f"Bearer {expected}"):
+    # Em bytes: com texto, um cabeçalho com acento faria compare_digest falhar com erro 500.
+    if not secrets.compare_digest(authorization.encode(), f"Bearer {expected}".encode()):
         raise HTTPException(status_code=401, detail="Token inválido")
 
 

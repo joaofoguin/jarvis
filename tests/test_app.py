@@ -82,6 +82,17 @@ def test_spoken_question_is_answered_aloud_with_task_result(app, jarvis, monkeyp
     assert jarvis.history[-1] == {"role": "assistant", "content": "Relatório pronto."}
 
 
+def test_unexpected_error_is_shown_instead_of_killing_the_thread(app, jarvis, monkeypatch):
+    def broken(text, history):
+        raise OSError("disco cheio")
+
+    monkeypatch.setattr(app, "reply_to", broken)
+
+    jarvis.answer("oi")
+
+    assert jarvis.chat.calls == ['addMessage("jarvis", "Desculpe, senhor. Algo deu errado: disco cheio")']
+
+
 def test_voice_state_reaches_orb_and_chat(jarvis):
     jarvis.show_state("listening")
 
@@ -137,13 +148,3 @@ def test_only_web_links_are_opened(app, jarvis, monkeypatch):
 
     assert opened == ["https://news.google.com/x"]
 
-
-def test_unexpected_error_shows_in_chat_instead_of_vanishing(app, jarvis, monkeypatch):
-    def broken(text, history):
-        raise AttributeError("'NoneType' object has no attribute 'get'")
-
-    monkeypatch.setattr(app, "reply_to", broken)
-
-    jarvis.answer_aloud("oi")
-
-    assert "Algo deu errado" in jarvis.chat.calls[-1]

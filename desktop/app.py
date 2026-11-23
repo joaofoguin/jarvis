@@ -194,8 +194,8 @@ class Jarvis:
             self.reply(text, say)
 
         except Exception as error:
-            # Um erro inesperado aparece no chat em vez de sumir, e não derruba a thread da voz.
-            print("ERRO AO RESPONDER:", repr(error))
+            # Um erro inesperado não pode derrubar a thread da voz nem deixar o chat sem resposta.
+            print("ERRO NA RESPOSTA:", repr(error))
             self.write("jarvis", f"Desculpe, senhor. Algo deu errado: {error}")
 
     def reply(self, text, say):

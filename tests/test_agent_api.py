@@ -41,6 +41,12 @@ def test_routes_reject_missing_or_wrong_token(client, method, path):
     assert client.request(method, path, json=body, headers={"Authorization": "Bearer errado"}).status_code == 401
 
 
+def test_token_with_accents_is_rejected_without_crashing(client):
+    response = client.get("/agent/commands", headers={"Authorization": "Bearer sénha".encode()})
+
+    assert response.status_code == 401
+
+
 def test_queue_is_closed_when_server_has_no_token(client, monkeypatch):
     monkeypatch.delenv("AGENT_TOKEN")
 

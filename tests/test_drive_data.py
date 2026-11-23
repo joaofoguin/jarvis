@@ -135,6 +135,14 @@ def test_download_exports_google_docs_as_word(monkeypatch, tmp_path):
     assert result == f"Baixei Relatório: Redes/2026 em {path}"
 
 
+def test_download_never_overwrites_an_existing_file(tmp_path):
+    (tmp_path / "notas.txt").write_text("antigo")
+    (tmp_path / "notas (2).txt").write_text("antigo")
+
+    assert drive_data.free_path(tmp_path / "notas.txt") == tmp_path / "notas (3).txt"
+    assert drive_data.free_path(tmp_path / "novo.txt") == tmp_path / "novo.txt"
+
+
 def test_text_edits_only_on_google_docs():
     drive_data.check_edit("acrescentar", DOC)
     drive_data.check_edit("renomear", PDF)
@@ -171,13 +179,6 @@ def test_rename_any_file():
     assert drive.log == [("update", "p1", {"name": "Relatório 2025.pdf"})]
     assert result == "Pronto, senhor. Relatório antigo.pdf agora se chama Relatório 2025.pdf."
 
-
-def test_download_never_overwrites_an_existing_file(tmp_path):
-    (tmp_path / "Notas.docx").write_bytes(b"antigo")
-    (tmp_path / "Notas (2).docx").write_bytes(b"antigo 2")
-
-    assert drive_data.free_path(tmp_path / "Notas.docx") == tmp_path / "Notas (3).docx"
-    assert drive_data.free_path(tmp_path / "Novo.docx") == tmp_path / "Novo.docx"
 
 
 def test_replace_question_says_every_occurrence_changes():

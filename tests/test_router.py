@@ -1,7 +1,7 @@
 import pytest
 
 from router import (
-    FORGET_PREFIX, ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, MEMORY_PREFIX, WHATSAPP_PREFIX,
+    ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, MEMORY_PREFIX, WHATSAPP_PREFIX,
     command_for_tool, detect_browser, detect_command, detect_contact, detect_google, is_allowed_command, memory_args,
     plain,
     whatsapp_args
