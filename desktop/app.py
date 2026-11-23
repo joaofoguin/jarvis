@@ -93,6 +93,9 @@ class Jarvis:
         self.chat_visible = False
         self.quitting = False
         self.history = []
+        # Voz e chat são a mesma conversa: um "sim" falado vale para a pergunta escrita e vice-versa.
+        # A trava faz um pedido terminar de ler e gravar a confirmação pendente antes do outro começar.
+        self.turn = threading.Lock()
         self.panel = None
         self.icon = None
         self.voice = Voice(on_text=self.answer_aloud, on_state=self.show_state, preferences=preferences)
@@ -199,8 +202,10 @@ class Jarvis:
             self.write("jarvis", f"Desculpe, senhor. Algo deu errado: {error}")
 
     def reply(self, text, say):
-        answer, task = reply_to(text, list(self.history))
-        self.history += [{"role": "user", "content": text}, {"role": "assistant", "content": answer}]
+        with self.turn:
+            answer, task = reply_to(text, list(self.history))
+            self.history += [{"role": "user", "content": text}, {"role": "assistant", "content": answer}]
+
         self.write("jarvis", answer)
         dashboard.log(datetime.now(), text, answer)
 

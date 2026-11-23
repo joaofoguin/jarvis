@@ -132,3 +132,14 @@ def test_agenda_summary_sorts_events_from_all_calendars():
 
 def test_agenda_summary_when_empty():
     assert icloud_data.agenda_summary(7, [FakeCalendar([])]) == "Nada no calendário do iCloud nos próximos 7 dias, senhor."
+
+
+def test_event_without_start_is_skipped():
+    today = datetime.now().astimezone().replace(hour=15, minute=0, second=0, microsecond=0)
+    broken = FakeEvent(today, "Sem data")
+    del broken.icalendar_component["dtstart"]
+
+    summary = icloud_data.agenda_summary(1, [FakeCalendar([broken, FakeEvent(today, "Dentista")])])
+
+    assert "Dentista" in summary
+    assert "Sem data" not in summary

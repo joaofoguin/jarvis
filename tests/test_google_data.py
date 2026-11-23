@@ -1,4 +1,6 @@
 from datetime import datetime
+from pathlib import Path
+
 import pytest
 
 import google_data
@@ -155,12 +157,12 @@ def test_accounts_and_token_files(monkeypatch):
     monkeypatch.setenv("GOOGLE_ACCOUNTS", "eu@gmail.com, joao.lima@discente.uenp.edu.br")
 
     assert google_data.accounts() == ["eu@gmail.com", "joao.lima@discente.uenp.edu.br"]
-    assert google_data.token_file("eu@gmail.com") == "google_token_eu_gmail_com.json"
+    assert Path(google_data.token_file("eu@gmail.com")).name == "google_token_eu_gmail_com.json"
 
     monkeypatch.delenv("GOOGLE_ACCOUNTS")
 
     assert google_data.accounts() == [None]
-    assert google_data.token_file(None) == "google_token.json"
+    assert Path(google_data.token_file(None)).name == "google_token.json"
 
 
 def test_failed_login_does_not_hide_other_accounts():
@@ -300,7 +302,7 @@ def test_youtube_account_choice(monkeypatch):
 
     assert google_data.youtube_account("insights do meu vídeo") == "basedobit01@gmail.com"
     assert google_data.youtube_account("youtube da conta joaopedrosrlima") == "joaopedrosrlima@gmail.com"
-    assert google_data.token_file("basedobit01@gmail.com", "youtube") == "google_token_basedobit01_gmail_com_youtube.json"
+    assert Path(google_data.token_file("basedobit01@gmail.com", "youtube")).name == "google_token_basedobit01_gmail_com_youtube.json"
 
 
 def test_classroom_since_keeps_only_recent_pending_work():
@@ -356,7 +358,7 @@ def test_revoked_token_never_opens_login_from_automatic_screens(monkeypatch, tmp
 
 def test_revoked_token_logs_in_again_from_the_chat(monkeypatch, tmp_path):
     revoked_token(monkeypatch, tmp_path)
-    monkeypatch.setattr(google_data, "CREDENTIALS_FILE", str(tmp_path / "token.json"))
+    monkeypatch.setenv("GOOGLE_CREDENTIALS", str(tmp_path / "token.json"))
 
     class Flow:
         def run_local_server(self, **kwargs):
@@ -365,3 +367,20 @@ def test_revoked_token_logs_in_again_from_the_chat(monkeypatch, tmp_path):
     monkeypatch.setattr("google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file", lambda *args: Flow())
 
     assert isinstance(google_data.get_credentials("eu@gmail.com"), ExpiredCredentials)
+
+
+def test_google_files_live_in_the_project_folder_wherever_the_app_starts(monkeypatch, tmp_path):
+    monkeypatch.setattr(google_data, "FOLDER", tmp_path / "jarvis")
+    monkeypatch.setenv("GOOGLE_CREDENTIALS", "minhas_credenciais.json")
+
+    assert google_data.token_file("eu@gmail.com") == str(tmp_path / "jarvis" / "google_token_eu_gmail_com.json")
+    assert google_data.credentials_file() == tmp_path / "jarvis" / "minhas_credenciais.json"
+
+
+def test_youtube_summary_when_recent_videos_are_private_or_removed():
+    youtube = FakeYouTube([video("v1", "Privado", "10")])
+    youtube.videos = lambda: FakeVideos([])
+
+    text = google_data.youtube_summary("", youtube, FakeAnalytics([]))
+
+    assert "privados ou removidos" in text

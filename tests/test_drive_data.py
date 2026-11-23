@@ -183,3 +183,16 @@ def test_rename_any_file():
 
 def test_replace_question_says_every_occurrence_changes():
     assert "todas as ocorrências" in drive_data.edit_question("substituir", DOC, "2025", "2026")
+
+
+def test_one_account_failing_does_not_stop_the_search_in_the_others():
+    class BrokenDrive:
+        def files(self):
+            raise RuntimeError("sem rede")
+
+    found = drive_data.find("relat", [("a@gmail.com", BrokenDrive(), None), ("b@gmail.com", FakeDrive([DOC]), None)])
+
+    assert [item[0] for item in found] == ["b@gmail.com"]
+
+    with pytest.raises(RuntimeError, match="Não consegui buscar em a@gmail.com: sem rede"):
+        drive_data.find("relat", [("a@gmail.com", BrokenDrive(), None)])

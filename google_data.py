@@ -3,6 +3,7 @@
 import os
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
 
 
 SCOPES = [
@@ -22,7 +23,13 @@ YOUTUBE_SCOPES = [
 os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
 # credentials.json vem do Google Cloud; os tokens são criados no primeiro login. Nenhum vai para o Git.
-CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS", "credentials.json")
+# Ficam na pasta do projeto, de onde quer que o JARVIS seja aberto (um atalho, por exemplo).
+FOLDER = Path(__file__).resolve().parent
+
+
+def credentials_file():
+    # Lido na hora: o .env pode ser carregado depois que este módulo é importado.
+    return FOLDER / (os.getenv("GOOGLE_CREDENTIALS") or "credentials.json")
 
 MAX_ITEMS = 10
 
@@ -48,11 +55,11 @@ def accounts(request=""):
 
 def token_file(account, kind=""):
     suffix = f"_{kind}" if kind else ""
+    name = f"google_token{suffix}.json" if not account else (
+        "google_token_" + re.sub(r"[^a-zA-Z0-9]+", "_", account) + suffix + ".json"
+    )
 
-    if not account:
-        return f"google_token{suffix}.json"
-
-    return "google_token_" + re.sub(r"[^a-zA-Z0-9]+", "_", account) + suffix + ".json"
+    return str(FOLDER / name)
 
 
 class LoginNeeded(RuntimeError):
@@ -89,11 +96,11 @@ def get_credentials(account, scopes=SCOPES, kind="", interactive=True):
         if not interactive:
             raise LoginNeeded(f"O login do Google de {account or 'sua conta'} precisa ser refeito. Peça pelo chat.")
 
-        if not os.path.exists(CREDENTIALS_FILE):
-            raise RuntimeError(f"Arquivo {CREDENTIALS_FILE} não encontrado. Veja o guia de configuração do Google.")
+        if not credentials_file().exists():
+            raise RuntimeError(f"Arquivo {credentials_file()} não encontrado. Veja o guia de configuração do Google.")
 
         # Abre o navegador para o login do Google; só acontece na primeira vez de cada conta.
-        flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, scopes)
+        flow = InstalledAppFlow.from_client_secrets_file(str(credentials_file()), scopes)
         creds = flow.run_local_server(
             port=0,
             timeout_seconds=LOGIN_TIMEOUT,
@@ -322,6 +329,11 @@ def youtube_summary(request="", youtube=None, analytics=None):
         return "\n".join(lines + ["O canal ainda não tem vídeos."])
 
     videos = youtube.videos().list(part="snippet,statistics", id=",".join(ids)).execute().get("items", [])
+
+    # Vídeos removidos ou privados continuam na lista de envios, mas não voltam com os dados.
+    if not videos:
+        return "\n".join(lines + ["Não consegui ler os vídeos recentes; eles podem estar privados ou removidos."])
+
     latest = videos[0]
     published = datetime.fromisoformat(latest["snippet"]["publishedAt"].replace("Z", "+00:00"))
     video_stats = latest.get("statistics", {})
