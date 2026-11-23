@@ -23,8 +23,8 @@ services:
     depends_on:
       app:
         condition: service_healthy
-    environment:
-      JARVIS_DOMAIN: ${JARVIS_DOMAIN}
+    env_file:
+      - .env.vps
     ports:
       - "80:80"
       - "443:443"

@@ -1,7 +1,11 @@
 venv/
+.venv*/
 .env
+.env.vps
+.env.*
+!.env.vps.example
 __pycache__/
-.vercel
+.vercel/
 .pytest_cache/
 credentials.json
 google_token*.json

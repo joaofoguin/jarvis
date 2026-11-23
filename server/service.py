@@ -47,19 +47,25 @@ async def process_chat(request: ChatRequest, session: AsyncSession, settings: Se
         choice = data.get("choices", [{}])[0]
         assistant = choice.get("message", {})
         usage = data.get("usage") or {}
-        prompt_tokens += int(usage.get("prompt_tokens", 0))
-        completion_tokens += int(usage.get("completion_tokens", 0))
-        tool_calls = assistant.get("tool_calls") or []
+        call_prompt_tokens = int(usage.get("prompt_tokens", 0))
+        call_completion_tokens = int(usage.get("completion_tokens", 0))
+        prompt_tokens += call_prompt_tokens
+        completion_tokens += call_completion_tokens
 
+        # Cada chamada ao modelo é registrada, inclusive as etapas intermediárias de ferramentas.
+        session.add(AIUsage(
+            provider="deepseek",
+            model=data.get("model", settings.deepseek_model),
+            source=request.source,
+            prompt_tokens=call_prompt_tokens,
+            cache_hit_tokens=int(usage.get("prompt_cache_hit_tokens", 0)),
+            completion_tokens=call_completion_tokens,
+        ))
+
+        tool_calls = assistant.get("tool_calls") or []
         if not tool_calls:
             answer = (assistant.get("content") or "").strip() or "Desculpe, senhor. Não consegui formular uma resposta."
             session.add(Message(conversation_id=conversation.id, role="assistant", content=answer))
-            session.add(AIUsage(
-                provider="deepseek", model=data.get("model", settings.deepseek_model), source=request.source,
-                prompt_tokens=int(usage.get("prompt_tokens", 0)),
-                cache_hit_tokens=int(usage.get("prompt_cache_hit_tokens", 0)),
-                completion_tokens=int(usage.get("completion_tokens", 0)),
-            ))
             await session.commit()
             return ChatResponse(conversation_id=conversation.id, answer=answer, model=data.get("model", settings.deepseek_model), prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
 
