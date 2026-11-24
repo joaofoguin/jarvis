@@ -19,29 +19,38 @@ from router import (
 # Mensagens anteriores enviadas à IA. Mais contexto custa mais tokens.
 HISTORY_LIMIT = 6
 
-# Ação com efeito fora do notebook esperando o "sim" do usuário: (resposta, tarefa) ou None.
+# Ação com efeito fora do notebook esperando o "sim" do usuário: (resposta, tarefa, comando) ou None.
 # Enviar mensagem no WhatsApp e editar um arquivo do Drive passam por aqui.
 pending_action = None
 
 CONFIRMATIONS = {"sim", "s", "pode", "pode enviar", "pode mandar", "envia", "manda", "confirmo", "ok"}
 
 
-def reply_to(text, history):
+# Rodadas da IA num pedido: ela usa uma ferramenta, vê o resultado e decide se falta outra.
+MAX_STEPS = 4
+
+
+def reply_to(text, history, record=None):
     """Responde a uma mensagem do chat e executa a ação no próprio notebook.
 
     Retorna (resposta, tarefa). A tarefa é uma função sem argumentos que demora
     (Claude Code, Google, navegador) e deve rodar em segundo plano; ela devolve o texto
     para mostrar no chat. É None quando não há nada a esperar.
+
+    record recebe uma mensagem para o histórico a cada ação executada, para a IA saber
+    depois o que foi feito (e conseguir "tentar de novo").
     """
 
     global pending_action
 
+    record = record or (lambda message: None)
+
     if pending_action:
-        reply, task = pending_action
+        reply, task, command = pending_action
         pending_action = None
 
         if normalize(text).strip(" .!") in CONFIRMATIONS:
-            return reply, task
+            return reply, recorded(record, command, task)
 
         # Qualquer outra resposta cancela; se for um pedido novo, ele segue normalmente.
         if normalize(text).strip(" .!") in {"nao", "n", "cancela", "cancelar"}:
@@ -52,7 +61,18 @@ def reply_to(text, history):
     )
 
     if match:
-        return run_command(*match, text)
+        # Comando conhecido: roda sem IA e sem rodadas seguintes.
+        command, answer = match
+        reply, task = run_command(command, answer, text)
+
+        if pending_action:
+            return reply, None
+
+        if task:
+            return reply, recorded(record, command, task)
+
+        record(executed(command))
+        return reply, None
 
     try:
         answer, command = ask(text, history)
@@ -64,44 +84,92 @@ def reply_to(text, history):
     if not command:
         return answer, None
 
-    if command.startswith((MEMORY_PREFIX, FORGET_PREFIX)):
-        return continue_after_memory(run_command(command, answer, text)[0], text, history)
-
-    return run_command(command, answer, text)
+    return follow_steps(text, history, record, [], answer, command)
 
 
-def ask(text, history, extra=None, tools=None):
+def ask(text, history, extra=None):
     # Só os fatos da memória ligados à pergunta vão junto, para gastar poucos tokens.
     return ask_llm(
         text, "desktop", memory.context(text) + history[-HISTORY_LIMIT:] + (extra or []),
-        tools or TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS + MEMORY_TOOLS
+        TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS + MEMORY_TOOLS
     )
 
 
-def continue_after_memory(note, text, history):
-    """Depois de guardar algo, segue a conversa: a mesma frase pode trazer outro pedido."""
+def executed(command):
+    return {"role": "system", "content": f"Ação executada: {command}"}
 
-    extra = [{
-        "role": "system",
-        "content": f"Você acabou de guardar na memória ({note}). Atenda agora o resto do pedido do usuário, "
-                   "se houver. Se ele só pediu para lembrar algo, responda apenas OK."
-    }]
 
-    try:
-        answer, command = ask(text, history, extra, TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS)
+def recorded(record, command, task):
+    """A tarefa registra a ação no histórico quando de fato roda."""
 
-    except LLMError as error:
-        print("ERRO NA IA:", repr(error))
-        return note, None
+    def run():
+        record(executed(command))
+        return task()
 
-    if command:
+    return run
+
+
+def follow_steps(text, history, record, steps, answer, command, background=False):
+    """Executa o comando da IA e mostra o resultado a ela, que pode pedir outra ação, até MAX_STEPS rodadas.
+
+    steps: (comando, resultado) já executados neste pedido.
+    Retorna (texto, tarefa). Quando uma ação demora, o texto até ali volta na hora e a tarefa
+    continua o ciclo em segundo plano (background=True), onde as ações rodam direto.
+    """
+
+    shown = []
+
+    while True:
         reply, task = run_command(command, answer, text)
-        return f"{note} {reply}".strip(), task
 
-    if plain(answer) == "ok":
-        return note, None
+        if pending_action:
+            # Enviar mensagem e editar arquivo esperam o "sim"; o pedido para aqui.
+            shown.append(reply)
+            break
 
-    return f"{note} {answer}", None
+        if task and not background:
+            return " ".join(filter(None, shown + [reply])), (
+                lambda: follow_steps(text, history, record, steps, answer, command, background=True)[0]
+            )
+
+        record(executed(command))
+        result = task() if task else reply
+        shown.append(result)
+        steps = steps + [(command, result)]
+
+        if len(steps) >= MAX_STEPS:
+            break
+
+        try:
+            answer, next_command = ask(text, history, [results_so_far(steps)])
+
+        except LLMError as error:
+            print("ERRO NA IA:", repr(error))
+            break
+
+        if not next_command:
+            if plain(answer) != "ok":
+                shown.append(answer)
+            break
+
+        # Repetir a mesma ação no mesmo pedido seria um ciclo sem fim.
+        if next_command in {done for done, _ in steps}:
+            break
+
+        command = next_command
+
+    return ("\n\n" if background else " ").join(filter(None, shown)), None
+
+
+def results_so_far(steps):
+    done = "\n".join(f"- {command}: {result}" for command, result in steps)
+
+    return {
+        "role": "system",
+        "content": f"Para o pedido abaixo, você já executou estas ações, e o usuário já viu os resultados:\n{done}\n"
+                   "Se o pedido ainda precisa de outra ação, use a ferramenta. "
+                   "Se não falta nada, responda apenas OK, sem repetir os resultados."
+    }
 
 
 def run_command(command, answer, text):
@@ -140,7 +208,7 @@ def run_command(command, answer, text):
         except Exception as error:
             return f"Desculpe, senhor. Não consegui achar o número: {error}", None
 
-        pending_action = "Enviando, senhor.", lambda: run_whatsapp(phone, message)
+        pending_action = "Enviando, senhor.", lambda: run_whatsapp(phone, message), command
         return f"Enviar \"{message}\" para {name} (+{phone}) no WhatsApp? Responda \"sim\" para confirmar.", None
 
     if command.startswith(DRIVE_PREFIX):
@@ -158,7 +226,7 @@ def run_command(command, answer, text):
         except Exception as error:
             return f"Desculpe, senhor. Não vou editar: {error}", None
 
-        pending_action = "Editando, senhor.", lambda: drive_data.edit(action, drive, docs, file, value, new_value)
+        pending_action = "Editando, senhor.", lambda: drive_data.edit(action, drive, docs, file, value, new_value), command
         return f"{drive_data.edit_question(action, file, value, new_value)} Responda \"sim\" para confirmar.", None
 
     if command == INSTAGRAM_MESSAGES:

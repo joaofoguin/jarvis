@@ -260,8 +260,7 @@ def test_conversation_continues_after_ai_saves_memory(actions, sent, monkeypatch
         'Enviar "Saudações do JARVIS, em nome do Foguinho." para Amor❤️🥵 (+5514996872005) no WhatsApp? '
         'Responda "sim" para confirmar.'
     )
-    assert "lembrar" not in calls[1]["tools"]
-    assert "Você acabou de guardar na memória" in calls[1]["history"][-1]["content"]
+    assert 'memoria_lembrar:["contatos", "toninho", "Amor"]: Certo, senhor.' in calls[1]["history"][-1]["content"]
 
 
 def test_only_memory_request_gets_short_answer(actions, monkeypatch):
@@ -319,3 +318,72 @@ def test_drive_search_runs_in_background_without_ai(actions, monkeypatch):
     answer, task = core.reply_to("procure o relatório de Redes no Drive", [])
 
     assert task() == "procurei relatório de Redes"
+
+
+def test_ai_sees_result_and_takes_next_step(actions, monkeypatch):
+    monkeypatch.setattr(core.google_data, "agenda_summary", lambda *args: "Prova às 10h")
+    monkeypatch.setattr(core.icloud_data, "configured", lambda: False)
+    calls = llm_replies(
+        monkeypatch,
+        ("Um momento, senhor.", "google_agenda:1"),
+        ("Abrindo o Bloco de Notas, senhor.", "open_app:notepad"),
+        ("Anotei a prova, senhor.", None)
+    )
+    recorded = []
+
+    answer, task = core.reply_to("prepare minha manhã", [], recorded.append)
+
+    assert answer == "Um momento, senhor." and actions == []
+    assert task() == "Prova às 10h\n\nAbrindo o Bloco de Notas, senhor.\n\nAnotei a prova, senhor."
+    assert actions == ["open_app:notepad"]
+    assert "google_agenda:1: Prova às 10h" in calls[1]["history"][-1]["content"]
+    assert recorded == [core.executed("google_agenda:1"), core.executed("open_app:notepad")]
+
+
+def test_steps_stop_at_the_limit(actions, monkeypatch):
+    commands = ["open_app:notepad", "open_app:calc", "open_website:youtube", "open_website:whatsapp", "open_app:paint"]
+    llm_replies(monkeypatch, *[("", command) for command in commands])
+
+    core.reply_to("prepare meu dia", [])
+
+    assert actions == commands[:core.MAX_STEPS]
+
+
+def test_repeated_action_ends_the_request(actions, monkeypatch):
+    llm_replies(monkeypatch, *[("Abrindo o Bloco de Notas, senhor.", "open_app:notepad")] * 2)
+
+    assert core.reply_to("quero anotar uma coisa", []) == ("Abrindo o Bloco de Notas, senhor.", None)
+    assert actions == ["open_app:notepad"]
+
+
+def test_ai_failure_after_an_action_keeps_the_result(actions, monkeypatch):
+    replies = iter([("Abrindo o Bloco de Notas, senhor.", "open_app:notepad")])
+
+    def ask(*args):
+        try:
+            return next(replies)
+        except StopIteration:
+            raise LLMError("sem saldo")
+
+    monkeypatch.setattr(core, "ask_llm", ask)
+
+    assert core.reply_to("quero anotar uma coisa", []) == ("Abrindo o Bloco de Notas, senhor.", None)
+
+
+def test_router_command_is_recorded_for_retry(actions, monkeypatch):
+    recorded = []
+
+    core.reply_to("abra o bloco de notas", [], recorded.append)
+
+    assert recorded == [core.executed("open_app:notepad")]
+
+
+def test_confirmed_message_is_recorded_when_sent(actions, sent, monkeypatch):
+    recorded = []
+    core.reply_to("manda pro Amor no zap: oi", [], recorded.append)
+
+    assert recorded == []
+
+    core.reply_to("sim", [], recorded.append)[1]()
+
+    assert recorded == [core.executed('whatsapp_enviar:["Amor", "oi"]')]
