@@ -142,3 +142,46 @@ def test_action_is_not_repeated_when_reporting_the_result_fails(monkeypatch):
     assert len(opened) == 1
     assert sent == [{"status": "completed", "result": "Bloco de Notas aberto"}] * 2
     assert agent.unreported == {}
+
+
+def test_only_one_agent_runs_per_computer(monkeypatch):
+    monkeypatch.setattr(agent, "AGENT_TOKEN", "segredo")
+    monkeypatch.setattr(agent, "LOCK_PORT", 0)
+    first = agent.start()
+    monkeypatch.setattr(agent, "LOCK_PORT", first.getsockname()[1])
+
+    try:
+        assert agent.start() == "outro agente já está rodando neste computador"
+    finally:
+        first.close()
+
+
+def test_agent_needs_token(monkeypatch):
+    monkeypatch.setattr(agent, "AGENT_TOKEN", None)
+
+    assert "AGENT_TOKEN" in agent.start()
+
+
+def test_serve_polls_until_stopped(monkeypatch):
+    import threading
+
+    stop = threading.Event()
+    polls = []
+
+    def check():
+        polls.append(1)
+        stop.set()
+
+    monkeypatch.setattr(agent, "check_commands", check)
+
+    class Lock:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    lock = Lock()
+    agent.serve(lock, stop)
+
+    assert polls == [1]
+    assert lock.closed
