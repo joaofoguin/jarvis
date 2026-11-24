@@ -171,3 +171,21 @@ def test_voice_and_chat_requests_do_not_interleave(app, jarvis, monkeypatch):
     [thread.join() for thread in threads]
 
     assert overlaps == []
+
+
+def test_app_runs_the_queue_agent_until_quitting(app, jarvis, monkeypatch):
+    served = []
+    lock = object()
+    monkeypatch.setattr(app.agent, "start", lambda: lock)
+    monkeypatch.setattr(app.agent, "serve", lambda lock, stop: served.append((lock, stop)))
+
+    app.run_agent(jarvis)
+
+    assert served == [(lock, jarvis.stopping)]
+
+
+def test_app_skips_the_agent_when_another_is_running(app, jarvis, monkeypatch):
+    monkeypatch.setattr(app.agent, "start", lambda: "outro agente já está rodando neste computador")
+    monkeypatch.setattr(app.agent, "serve", lambda *args: pytest.fail("não deveria rodar"))
+
+    app.run_agent(jarvis)

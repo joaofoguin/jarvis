@@ -16,6 +16,7 @@ import keyboard
 import pystray
 import webview
 
+from agent import agent
 from desktop import dashboard, notices, orb, settings
 from desktop.core import reply_to
 from desktop.orb import Orb
@@ -78,6 +79,19 @@ def watch_notices(jarvis, icon):
         time.sleep(NOTICES_INTERVAL)
 
 
+def run_agent(jarvis):
+    """O agente da fila (Alexa e página /app) roda junto com o app, numa thread própria."""
+
+    lock = agent.start()
+
+    if isinstance(lock, str):
+        # Sem AGENT_TOKEN, ou o agente já está aberto em outra janela: o app segue sem ele.
+        print("AGENTE DA FILA NÃO INICIADO:", lock)
+        return
+
+    agent.serve(lock, jarvis.stopping)
+
+
 def call_js(window, function, *args):
     # json.dumps deixa qualquer texto seguro como argumento de JavaScript.
     window.evaluate_js(f"{function}({', '.join(json.dumps(arg) for arg in args)})")
@@ -92,6 +106,7 @@ class Jarvis:
         self.chat = chat
         self.chat_visible = False
         self.quitting = False
+        self.stopping = threading.Event()
         self.history = []
         # Voz e chat são a mesma conversa: um "sim" falado vale para a pergunta escrita e vice-versa.
         # A trava faz um pedido terminar de ler e gravar a confirmação pendente antes do outro começar.
@@ -271,6 +286,7 @@ def main():
 
     def quit_app():
         jarvis.quitting = True
+        jarvis.stopping.set()
         icon.stop()
         jarvis.orb.destroy()
         chat.destroy()
@@ -290,6 +306,7 @@ def main():
     )
     icon.run_detached()
     threading.Thread(target=watch_notices, args=(jarvis, icon), daemon=True).start()
+    threading.Thread(target=run_agent, args=(jarvis,), daemon=True).start()
 
     keyboard.add_hotkey(HOTKEY, jarvis.toggle_chat)
 

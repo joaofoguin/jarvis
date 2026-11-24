@@ -1,6 +1,6 @@
 import os
 import shutil
-import time
+import socket
 import threading
 import subprocess
 import requests
@@ -26,6 +26,10 @@ CLAUDE_CODE_TOOLS = "Read,Edit,Write,Glob,Grep"
 
 # Tarefas do Claude Code em andamento, para não repetir enquanto o comando segue pendente.
 running_ids = set()
+
+# Porta local usada só como trava: um segundo agente (o do desktop.app e o de "python -m agent.agent"
+# juntos) não consegue abri-la e não roda, para nenhum comando ser executado duas vezes.
+LOCK_PORT = 47613
 
 # Comandos já executados cujo resultado ainda não chegou à API (a rede caiu na hora de avisar).
 # Na próxima consulta, só o aviso é repetido; a ação não roda de novo.
@@ -195,10 +199,53 @@ def check_commands():
         execute_command(command_id, command_text)
 
 
-def main():
+def single_instance():
+    """A trava do agente, ou None se outro agente já está rodando neste computador."""
+
+    lock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    try:
+        lock.bind(("127.0.0.1", LOCK_PORT))
+
+    except OSError:
+        lock.close()
+        return None
+
+    return lock
+
+
+def start():
+    """Prepara o agente. Retorna a trava, ou o motivo de não rodar."""
 
     if not AGENT_TOKEN:
-        print("[ERRO] AGENT_TOKEN não encontrado no arquivo .env")
+        return "AGENT_TOKEN não encontrado no arquivo .env"
+
+    lock = single_instance()
+    return lock or "outro agente já está rodando neste computador"
+
+
+def serve(lock, stop=None):
+    """Busca e executa a fila a cada 5 segundos até `stop` (um threading.Event) ser ligado."""
+
+    stop = stop or threading.Event()
+
+    while not stop.is_set():
+        try:
+            check_commands()
+
+        except Exception as error:
+            print(f"[ERRO] {error}")
+
+        stop.wait(5)
+
+    lock.close()
+
+
+def main():
+    lock = start()
+
+    if isinstance(lock, str):
+        print(f"[ERRO] {lock}")
         return
 
     print("================================")
@@ -209,15 +256,7 @@ def main():
     print("Aguardando comandos...")
     print()
 
-    while True:
-
-        try:
-            check_commands()
-
-        except Exception as error:
-            print(f"[ERRO] {error}")
-
-        time.sleep(5)
+    serve(lock)
 
 
 if __name__ == "__main__":

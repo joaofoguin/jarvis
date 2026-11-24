@@ -201,12 +201,14 @@ O agente conhecido:
 - Fecha cada comando como `completed`, `failed` ou `rejected`, com a descrição do resultado.
 - Registra no terminal comandos recebidos, ações e erros.
 
-Iniciar no PowerShell, a partir da raiz do projeto:
+Desde 23/11/2026 o agente roda sozinho dentro do app do notebook (`pythonw -m desktop.app`), numa thread própria. Para rodar só o agente, sem o app, no PowerShell a partir da raiz do projeto:
 
 ```powershell
 .\venv\Scripts\Activate.ps1
 python .\agent\agent.py
 ```
+
+Só um agente roda por computador (trava na porta local 47613): se o app já estiver aberto, o comando acima avisa e sai, para nenhum comando ser executado duas vezes.
 
 Para parar o agente, use `Ctrl+C`. Após alterar `agent.py`, pare e inicie novamente o processo para garantir que o código novo esteja em execução.
 
