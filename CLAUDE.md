@@ -20,6 +20,9 @@
 - O agente local só executa ações de uma lista permitida. Nunca execute texto livre como comando de terminal.
 - Nunca versione `.env`, chaves ou strings de conexão.
 - Testes: `pip install -r requirements-dev.txt` e `python -m pytest`. Não chame APIs reais nos testes.
+- Rode só os testes da parte que mudou (ex.: `python -m pytest tests/test_router.py`). A suíte inteira roda no CI; rode-a localmente só se o usuário pedir.
+- Respostas curtas: use a skill `caveman` (`.claude/skills/caveman`) no chat. Código, commits, PRs e docs seguem em texto normal.
+- Documentação de bibliotecas: consulte o Context7 (`.mcp.json`) em vez de ler páginas inteiras ou adivinhar APIs.
 
 ---
 
