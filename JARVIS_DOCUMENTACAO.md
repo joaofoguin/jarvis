@@ -399,7 +399,7 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - Guardar a mesma chave de novo substitui o valor. Pedir para reformular ou repetir uma informação não cria cópias.
 - `contatos` liga o jeito como o usuário chama alguém (chave) a um nome dos contatos ou a um número (valor). O WhatsApp e a busca de contatos usam isso.
 - Todo o assunto `usuario` vai sempre para a IA. Dos outros assuntos, só vão os itens com palavras em comum com a pergunta, no máximo 5.
-- Quando a IA guarda ou apaga algo, o JARVIS faz uma segunda chamada, sem as ferramentas de memória, para atender o resto da frase. Se não houver mais nada, a IA responde "OK", e o chat mostra só a confirmação.
+- Quando a IA guarda ou apaga algo, o JARVIS segue o ciclo de etapas (veja "pedidos em etapas", 24/11/2026) para atender o resto da frase. Se não houver mais nada, a IA responde "OK", e o chat mostra só a confirmação.
 - O prompt pede que a IA use sempre `enviar_whatsapp` para enviar ou mudar uma mensagem, em vez de pedir confirmação em texto.
 
 ### Atualização de 22/10/2026: conversa por voz
@@ -490,6 +490,14 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 - **Arquivos do Google:** `credentials.json` e os `google_token*.json` ficam sempre na pasta do projeto, mesmo abrindo o JARVIS por um atalho; `GOOGLE_CREDENTIALS` do `.env` passou a valer.
 - **Robustez:** uma conta com erro não para a busca do Drive nas outras; evento do iCloud sem data é ignorado; vídeos privados ou removidos não quebram o resumo do YouTube; voz e chat respondem um pedido de cada vez, então a confirmação pendente nunca se mistura.
 - **Testes:** rodam fora da pasta do projeto e sem as variáveis do `.env`, então nunca chegam ao Google, iCloud, Neon ou DeepSeek reais, mesmo no notebook configurado.
+
+### Atualização de 24/11/2026: pedidos em etapas no chat do notebook
+
+- Quando a IA escolhe uma ação, o JARVIS executa e mostra o resultado a ela (`follow_steps` em `desktop/core.py`). A IA pode pedir outra ação ou encerrar com "OK", até 4 rodadas por pedido (`MAX_STEPS`). Cada rodada é uma chamada ao DeepSeek e registra seus tokens em `ai_usage`.
+- Os comandos que o roteador reconhece continuam sem IA e sem rodadas seguintes.
+- O que demora (Google, Claude Code, navegador) roda em segundo plano, e o ciclo continua lá. O chat mostra "Um momento" na hora e o resultado de todas as etapas no fim.
+- Repetir a mesma ação no mesmo pedido encerra o ciclo. Enviar no WhatsApp e editar no Drive param o ciclo e esperam o "sim".
+- O histórico do chat guarda uma linha "Ação executada: <comando>" para cada ação que de fato rodou, além do texto. Assim, "tenta de novo" sabe o que repetir.
 
 ## 13. Histórico de resultados e problemas
 

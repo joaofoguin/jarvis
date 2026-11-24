@@ -218,8 +218,10 @@ class Jarvis:
 
     def reply(self, text, say):
         with self.turn:
-            answer, task = reply_to(text, list(self.history))
-            self.history += [{"role": "user", "content": text}, {"role": "assistant", "content": answer}]
+            # As ações executadas entram no histórico junto com o texto, para "tenta de novo" funcionar.
+            actions = []
+            answer, task = reply_to(text, list(self.history), actions.append)
+            self.history += [{"role": "user", "content": text}, *actions, {"role": "assistant", "content": answer}]
 
         self.write("jarvis", answer)
         dashboard.log(datetime.now(), text, answer)
@@ -228,9 +230,10 @@ class Jarvis:
             say(answer)
 
         if task:
+            actions.clear()
             note = task()
             # Guarda o resultado para a IA poder responder perguntas sobre ele depois.
-            self.history.append({"role": "assistant", "content": note})
+            self.history += [*actions, {"role": "assistant", "content": note}]
             self.write("jarvis", note)
 
             if say:

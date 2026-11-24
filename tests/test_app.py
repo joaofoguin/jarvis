@@ -60,7 +60,7 @@ def test_text_is_sent_to_javascript_as_safe_strings(app):
 
 
 def test_typed_message_and_answer_go_to_chat_and_history(app, jarvis, monkeypatch):
-    monkeypatch.setattr(app, "reply_to", lambda text, history: ("Brasília, senhor.", None))
+    monkeypatch.setattr(app, "reply_to", lambda text, history, record: ("Brasília, senhor.", None))
 
     jarvis.send("capital do Brasil?")
 
@@ -72,7 +72,7 @@ def test_typed_message_and_answer_go_to_chat_and_history(app, jarvis, monkeypatc
 
 
 def test_spoken_question_is_answered_aloud_with_task_result(app, jarvis, monkeypatch):
-    monkeypatch.setattr(app, "reply_to", lambda text, history: ("Gerando, senhor.", lambda: "Relatório pronto."))
+    monkeypatch.setattr(app, "reply_to", lambda text, history, record: ("Gerando, senhor.", lambda: "Relatório pronto."))
     said = []
     monkeypatch.setattr(jarvis.voice, "say", said.append)
 
@@ -82,8 +82,31 @@ def test_spoken_question_is_answered_aloud_with_task_result(app, jarvis, monkeyp
     assert jarvis.history[-1] == {"role": "assistant", "content": "Relatório pronto."}
 
 
+def test_executed_actions_go_to_history(app, jarvis, monkeypatch):
+    def reply_to(text, history, record):
+        record({"role": "system", "content": "Ação executada: google_agenda:1"})
+
+        def task():
+            record({"role": "system", "content": "Ação executada: open_app:notepad"})
+            return "Pronto."
+
+        return "Um momento.", task
+
+    monkeypatch.setattr(app, "reply_to", reply_to)
+
+    jarvis.send("agenda e bloco de notas")
+
+    assert jarvis.history == [
+        {"role": "user", "content": "agenda e bloco de notas"},
+        {"role": "system", "content": "Ação executada: google_agenda:1"},
+        {"role": "assistant", "content": "Um momento."},
+        {"role": "system", "content": "Ação executada: open_app:notepad"},
+        {"role": "assistant", "content": "Pronto."}
+    ]
+
+
 def test_unexpected_error_is_shown_instead_of_killing_the_thread(app, jarvis, monkeypatch):
-    def broken(text, history):
+    def broken(text, history, record):
         raise OSError("disco cheio")
 
     monkeypatch.setattr(app, "reply_to", broken)
@@ -131,7 +154,7 @@ def test_saved_preferences_apply_without_restarting(jarvis):
 def test_answers_go_to_the_history_file(app, jarvis, monkeypatch):
     from desktop import dashboard
 
-    monkeypatch.setattr(app, "reply_to", lambda text, history: ("Às ordens.", None))
+    monkeypatch.setattr(app, "reply_to", lambda text, history, record: ("Às ordens.", None))
 
     jarvis.send("oi")
 
