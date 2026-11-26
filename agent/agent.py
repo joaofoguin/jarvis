@@ -110,11 +110,12 @@ def call_claude_code(task):
     print(f"[AÇÃO] Claude Code: {task}")
 
     try:
+        # O pedido vai pela entrada padrão: no Windows o claude pode ser um .cmd, e um argumento com
+        # quebra de linha é cortado pelo cmd.exe. Sem janela de terminal piscando na tela.
         completed = subprocess.run(
             [
                 claude,
                 "-p",
-                f"{task}\n\nAo terminar, resuma em português, em poucas frases, o que foi feito.",
                 "--allowedTools",
                 CLAUDE_CODE_TOOLS,
                 "--disallowedTools",
@@ -122,7 +123,9 @@ def call_claude_code(task):
                 "--output-format",
                 "text"
             ],
+            input=f"{task}\n\nAo terminar, resuma em português, em poucas frases, o que foi feito.",
             cwd=JARVIS_WORKSPACE,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             capture_output=True,
             text=True,
             encoding="utf-8",
