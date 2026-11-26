@@ -5,9 +5,15 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from router import normalize
+
+
+CALENDAR_WRITE = "https://www.googleapis.com/auth/calendar.events"
 
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
+    # Criar, mudar e apagar eventos, sempre depois de um "sim" no chat.
+    CALENDAR_WRITE,
     "https://www.googleapis.com/auth/classroom.courses.readonly",
     "https://www.googleapis.com/auth/classroom.coursework.me.readonly"
 ]
@@ -182,6 +188,22 @@ def label(account, many):
     return f" [{account}]" if many and account else ""
 
 
+# Texto de cada linha mostrada (evento ou atividade) → link dela no Google, para o clique e o "abra...".
+LINKS = {}
+
+
+def find_link(name):
+    """(texto, link) da linha mostrada mais recente que contém o nome, ou None."""
+
+    wanted = normalize(name)
+
+    for text, link in reversed(list(LINKS.items())):
+        if wanted and wanted in normalize(text):
+            return text, link
+
+    return None
+
+
 def agenda_summary(days, account_services=None, request=""):
     account_services = account_services or services("calendar", "v3", request)
     many = len(account_services) > 1
@@ -211,7 +233,11 @@ def agenda_summary(days, account_services=None, request=""):
             errors.append(f"Não consegui ler a agenda de {account}: {short_error(error)}")
             continue
 
-        events += [(event_start(item), format_event(item) + label(account, many)) for item in items]
+        for item in items:
+            text = format_event(item) + label(account, many)
+            events.append((event_start(item), text))
+            if item.get("htmlLink"):
+                LINKS[text] = item["htmlLink"]
 
     period = "hoje" if days == 1 else f"nos próximos {days} dias"
 
@@ -261,8 +287,8 @@ def classroom_summary(account_services=None, request="", since=None):
 
         try:
             pending += [
-                (due, course + label(account, many), title)
-                for due, course, title in pending_work(service, since)
+                (due, course + label(account, many), title, link)
+                for due, course, title, link in pending_work(service, since)
             ]
 
         except Exception as error:
@@ -273,9 +299,12 @@ def classroom_summary(account_services=None, request="", since=None):
         pending.sort(key=lambda entry: (entry[0] is None, entry[0] or datetime.max))
         lines = ["Atividades pendentes no Classroom:"]
 
-        for due, course, title in pending[:MAX_ITEMS]:
+        for due, course, title, link in pending[:MAX_ITEMS]:
             deadline = f"até {due:%d/%m}" if due else "sem prazo"
-            lines.append(f"- {title} ({course}, {deadline})")
+            text = f"{title} ({course}, {deadline})"
+            lines.append(f"- {text}")
+            if link:
+                LINKS[text] = link
     elif len(errors) < len(account_services):
         lines = ["Nenhuma atividade pendente no Classroom, senhor."]
     else:
@@ -285,7 +314,7 @@ def classroom_summary(account_services=None, request="", since=None):
 
 
 def pending_work(service, since=None):
-    """Retorna [(prazo, turma, título)] das atividades pendentes de uma conta."""
+    """Retorna [(prazo, turma, título, link)] das atividades pendentes de uma conta."""
 
     courses = service.courses().list(studentId="me", courseStates=["ACTIVE"]).execute().get("courses", [])
     pending = []
@@ -307,9 +336,61 @@ def pending_work(service, since=None):
 
         for item in work:
             if item["id"] in pending_ids and (not since or created_at(item) >= since):
-                pending.append((due_date(item), course["name"], item.get("title", "(sem título)")))
+                pending.append((due_date(item), course["name"], item.get("title", "(sem título)"), item.get("alternateLink")))
 
     return pending
+
+
+def parse_when(value):
+    """Data e hora em ISO ("2026-11-27T14:00"); sem fuso, vale o horário do notebook."""
+
+    when = datetime.fromisoformat(value)
+    return when if when.tzinfo else when.astimezone()
+
+
+def event_times(start, end):
+    start = parse_when(start)
+    end = parse_when(end) if end else start + timedelta(hours=1)
+    return {"start": {"dateTime": start.isoformat()}, "end": {"dateTime": end.isoformat()}}
+
+
+def find_event(name, account_services):
+    """(conta, serviço, evento) do próximo evento com esse nome, de ontem em diante."""
+
+    since = (datetime.now().astimezone() - timedelta(days=1)).isoformat()
+
+    for account, service in account_services:
+        if isinstance(service, Exception):
+            continue
+
+        items = service.events().list(
+            calendarId="primary", q=name, timeMin=since, singleEvents=True, orderBy="startTime", maxResults=5
+        ).execute().get("items", [])
+
+        if items:
+            return account, service, items[0]
+
+    raise RuntimeError(f"não achei o evento \"{name}\" na sua agenda")
+
+
+def create_event(service, title, start, end=""):
+    event = service.events().insert(calendarId="primary", body={"summary": title, **event_times(start, end)}).execute()
+    return f"Pronto, senhor. Criei {format_event(event)} na agenda."
+
+
+def update_event(service, event, title="", start="", end=""):
+    changes = {"summary": title} if title else {}
+
+    if start:
+        changes.update(event_times(start, end))
+
+    event = service.events().patch(calendarId="primary", eventId=event["id"], body=changes).execute()
+    return f"Pronto, senhor. O evento agora é {format_event(event)}."
+
+
+def delete_event(service, event):
+    service.events().delete(calendarId="primary", eventId=event["id"]).execute()
+    return f"Pronto, senhor. Apaguei {format_event(event)} da agenda."
 
 
 def created_at(item):

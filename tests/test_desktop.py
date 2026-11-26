@@ -1,7 +1,10 @@
+import types
+
 import pytest
 
 from desktop import core
 from llm import LLMError
+from router import command_for_tool
 
 
 @pytest.fixture
@@ -29,7 +32,8 @@ def test_ai_answer_uses_recent_history(actions, monkeypatch):
     history = [{"role": "user", "content": str(n)} for n in range(10)]
 
     assert core.reply_to("e a capital?", history) == ("Brasília, senhor.", None)
-    assert received["history"] == history[-core.HISTORY_LIMIT:]
+    assert received["history"][0]["content"].startswith("Agora: ")
+    assert received["history"][1:] == history[-core.HISTORY_LIMIT:]
     assert actions == []
 
 
@@ -417,3 +421,78 @@ def test_classroom_in_chat_follows_the_accounts_chosen_in_preferences(actions, m
     core.classroom("tarefas do classroom da conta pessoal")
 
     assert used == [["joao@discente.uenp.edu.br"], None]
+
+
+class FakeEvents:
+    def __init__(self, log, items=()):
+        self.log, self.items = log, list(items)
+
+    def list(self, **kwargs):
+        self.log.append(("list", kwargs.get("q")))
+        return types.SimpleNamespace(execute=lambda: {"items": self.items})
+
+    def insert(self, calendarId, body):
+        self.log.append(("insert", body))
+        return types.SimpleNamespace(execute=lambda: {**body, "summary": body["summary"]})
+
+    def patch(self, calendarId, eventId, body):
+        self.log.append(("patch", eventId, body))
+        return types.SimpleNamespace(execute=lambda: {**self.items[0], **body})
+
+    def delete(self, calendarId, eventId):
+        self.log.append(("delete", eventId))
+        return types.SimpleNamespace(execute=lambda: None)
+
+
+@pytest.fixture
+def calendar(monkeypatch):
+    log = []
+    event = {"id": "e1", "summary": "Dentista", "start": {"dateTime": "2026-11-27T10:00:00"}}
+    service = types.SimpleNamespace(events=lambda: FakeEvents(log, [event]))
+    monkeypatch.setattr(core.google_data, "services", lambda name, version, request="", only=None: [("a@b.com", service)])
+    return log
+
+
+def test_ai_creates_an_event_only_after_yes(actions, calendar, monkeypatch):
+    llm_replies(monkeypatch, ("Certo.", None))
+    command, _ = command_for_tool("criar_evento", {"titulo": "Prova", "inicio": "2026-11-28T14:00"})
+
+    answer, _ = core.run_command(command, "", "marque a prova sábado às 14h")
+
+    assert answer.startswith('Criar "Prova" em 28/11 às 14:00') and calendar == []
+    reply, task = core.reply_to("sim", [])
+    assert "Criei" in task()
+    body = calendar[0][1]
+    assert body["summary"] == "Prova" and body["start"]["dateTime"].startswith("2026-11-28T14:00")
+    assert body["end"]["dateTime"].startswith("2026-11-28T15:00")
+
+
+def test_moving_and_deleting_find_the_event_and_ask_first(actions, calendar):
+    command, _ = command_for_tool("mudar_evento", {"evento": "dentista", "inicio": "2026-11-27T11:00"})
+
+    answer, _ = core.run_command(command, "", "mude o dentista para 11h")
+
+    assert answer.startswith("Mudar 27/11 10:00 Dentista para horário 27/11 11:00?")
+    assert core.reply_to("não", [])[0] == "Certo, senhor. Cancelado."
+    assert all(entry[0] == "list" for entry in calendar)
+
+    command, _ = command_for_tool("apagar_evento", {"evento": "dentista"})
+    core.run_command(command, "", "apague o dentista")
+    core.reply_to("sim", [])[1]()
+    assert calendar[-1] == ("delete", "e1")
+
+
+def test_invalid_calendar_tool_arguments_are_refused():
+    assert command_for_tool("criar_evento", {"titulo": "Prova", "inicio": "sábado"}) is None
+    assert command_for_tool("mudar_evento", {"evento": "x"}) is None
+    assert command_for_tool("apagar_evento", {}) is None
+
+
+def test_open_in_google_uses_links_of_listed_items(actions, monkeypatch):
+    opened = []
+    monkeypatch.setattr(core.webbrowser, "open", opened.append)
+    core.google_data.LINKS.clear()
+    core.google_data.LINKS["27/11 10:00 Dentista"] = "https://calendar.google.com/e1"
+
+    assert core.open_in_google("dentista", "") == "Abri 27/11 10:00 Dentista no navegador, senhor."
+    assert opened == ["https://calendar.google.com/e1"]

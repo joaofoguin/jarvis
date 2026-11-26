@@ -1,3 +1,6 @@
+import webbrowser
+from datetime import datetime
+
 import browser
 import drive_data
 import google_data
@@ -11,9 +14,9 @@ from agent.agent import call_claude_code, run_action
 from desktop import settings
 from llm import BROWSER_TOOLS, FILE_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, MEMORY_TOOLS, TOOLS, LLMError, ask_llm
 from router import (
-    CLAUDE_CODE_PREFIX, DRIVE_PREFIX, DRIVE_READS, FORGET_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
+    CALENDAR_PREFIX, CLAUDE_CODE_PREFIX, DRIVE_PREFIX, GOOGLE_OPEN_PREFIX, DRIVE_READS, FORGET_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
     ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, LOCAL_FILE_PREFIX, MEMORY_PREFIX, WHATSAPP_PREFIX,
-    detect_browser, detect_command, detect_contact, detect_drive, detect_google, drive_args, local_file_args, memory_args,
+    detect_browser, detect_command, detect_contact, detect_drive, detect_google, calendar_args, drive_args, local_file_args, memory_args,
     normalize,
     plain, whatsapp_args
 )
@@ -90,10 +93,19 @@ def reply_to(text, history, record=None):
     return follow_steps(text, history, record, [], answer, command)
 
 
+WEEKDAYS = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+
+
+def now_context():
+    # Sem a data, a IA não sabe o que é "amanhã às 14h" ao mexer na agenda.
+    now = datetime.now()
+    return [{"role": "system", "content": f"Agora: {WEEKDAYS[now.weekday()]}, {now:%Y-%m-%d %H:%M} (horário local)."}]
+
+
 def ask(text, history, extra=None):
     # Só os fatos da memória ligados à pergunta vão junto, para gastar poucos tokens.
     return ask_llm(
-        text, "desktop", memory.context(text) + history[-HISTORY_LIMIT:] + (extra or []),
+        text, "desktop", memory.context(text) + now_context() + history[-HISTORY_LIMIT:] + (extra or []),
         TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS + MEMORY_TOOLS + FILE_TOOLS
     )
 
@@ -237,6 +249,19 @@ def run_command(command, answer, text):
         pending_action = "Editando, senhor.", lambda: drive_data.edit(action, drive, docs, file, value, new_value), command
         return f"{drive_data.edit_question(action, file, value, new_value)} Responda \"sim\" para confirmar.", None
 
+    if command.startswith(CALENDAR_PREFIX):
+        try:
+            question, change = calendar_change(text, *calendar_args(command))
+
+        except Exception as error:
+            return f"Desculpe, senhor. Não consegui: {error}", None
+
+        pending_action = "Certo, senhor.", lambda: run_google(change), command
+        return f"{question} Responda \"sim\" para confirmar.", None
+
+    if command.startswith(GOOGLE_OPEN_PREFIX):
+        return answer, lambda: run_google(open_in_google, command[len(GOOGLE_OPEN_PREFIX):], text)
+
     if command.startswith(LOCAL_FILE_PREFIX):
         action, name = local_file_args(command)
 
@@ -276,6 +301,48 @@ def run_task(task):
         return f"Claude Code terminou: {result}"
 
     return f"O Claude Code falhou: {result}"
+
+
+def calendar_change(text, action, name, title, start, end, account):
+    """(pergunta de confirmação, função que faz a mudança). O evento é achado agora, para a pergunta ser exata."""
+
+    if action == "criar":
+        found = [(email, service) for email, service in google_data.services("calendar", "v3", account or text)
+                 if not isinstance(service, Exception)]
+
+        if not found:
+            raise RuntimeError("não consegui entrar na sua agenda do Google")
+
+        email, service = found[0]
+        when = google_data.parse_when(start)
+        where = f" na agenda de {email}" if email else ""
+        return f"Criar \"{title}\" em {when:%d/%m às %H:%M}{where}?", lambda: google_data.create_event(service, title, start, end)
+
+    email, service, event = google_data.find_event(name, google_data.services("calendar", "v3", text))
+    current = google_data.format_event(event)
+
+    if action == "apagar":
+        return f"Apagar {current} da agenda?", lambda: google_data.delete_event(service, event)
+
+    new = " e ".join(filter(None, [title and f"título \"{title}\"", start and f"horário {google_data.parse_when(start):%d/%m %H:%M}"]))
+    return f"Mudar {current} para {new}?", lambda: google_data.update_event(service, event, title, start, end)
+
+
+def open_in_google(name, text):
+    """Abre no navegador o evento ou a atividade; se não estiver nas listas já mostradas, busca de novo."""
+
+    found = google_data.find_link(name)
+
+    if not found:
+        google_data.agenda_summary(7, None, text)
+        classroom(text)
+        found = google_data.find_link(name)
+
+    if not found or not found[1].startswith("https://"):
+        return f"Não achei \"{name}\" na agenda nem no Classroom, senhor."
+
+    webbrowser.open(found[1])
+    return f"Abri {found[0]} no navegador, senhor."
 
 
 def classroom(text):
