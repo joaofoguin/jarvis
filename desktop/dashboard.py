@@ -20,8 +20,7 @@ from desktop import core, settings, usage
 NEWS_PER_TOPIC = 4
 NEWS_TIMEOUT = 10
 
-# O Classroom do painel mostra só o que foi passado nesse período.
-CLASSROOM_DAYS = 30
+CLASSROOM_DAYS = google_data.CLASSROOM_DAYS
 
 # O feed junta os pedidos em conversas, como os chats de IA: um intervalo maior que esse começa outra.
 CONVERSATION_GAP = timedelta(minutes=30)

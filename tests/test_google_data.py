@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -79,20 +79,25 @@ class FakeClassroom:
         return Call({"courseWork": self.data["work"].get(kwargs["courseId"], [])})
 
 
+NOW = datetime.now(timezone.utc).isoformat()
+
+
 def test_classroom_lists_only_pending_work_sorted_by_due_date():
     service = FakeClassroom(
         courses=[{"id": "c1", "name": "Cálculo"}, {"id": "c2", "name": "Física"}],
         work={
             "c1": [
-                {"id": "w1", "title": "Lista 3", "dueDate": {"year": 2026, "month": 10, "day": 30}},
-                {"id": "w2", "title": "Lista 2 (entregue)"}
+                {"id": "w1", "title": "Lista 3", "dueDate": {"year": 2099, "month": 10, "day": 30}},
+                {"id": "w2", "title": "Lista 2 (entregue)"},
+                {"id": "w5", "title": "Lista 1", "dueDate": {"year": 2021, "month": 3, "day": 1}}
             ],
             "c2": [
-                {"id": "w3", "title": "Relatório", "dueDate": {"year": 2026, "month": 10, "day": 25}},
-                {"id": "w4", "title": "Leitura"}
+                {"id": "w3", "title": "Relatório", "dueDate": {"year": 2099, "month": 10, "day": 25}},
+                {"id": "w4", "title": "Leitura", "creationTime": NOW},
+                {"id": "w6", "title": "Leitura antiga", "creationTime": "2021-03-01T10:00:00Z"}
             ]
         },
-        pending={"c1": ["w1"], "c2": ["w3", "w4"]}
+        pending={"c1": ["w1", "w5"], "c2": ["w3", "w4", "w6"]}
     )
 
     lines = google_data.classroom_summary([(None, service)]).splitlines()
@@ -101,7 +106,8 @@ def test_classroom_lists_only_pending_work_sorted_by_due_date():
         "Atividades pendentes no Classroom:",
         "- Relatório (Física, até 25/10)",
         "- Lista 3 (Cálculo, até 30/10)",
-        "- Leitura (Física, sem prazo)"
+        "- Leitura (Física, sem prazo)",
+        "(1 com prazo vencido não mostradas.)"
     ]
 
 
@@ -143,7 +149,7 @@ def test_one_account_failing_does_not_hide_the_others():
 def test_classroom_labels_courses_by_account():
     service = FakeClassroom(
         courses=[{"id": "c1", "name": "Cálculo"}],
-        work={"c1": [{"id": "w1", "title": "Lista 3"}]},
+        work={"c1": [{"id": "w1", "title": "Lista 3", "creationTime": NOW}]},
         pending={"c1": ["w1"]}
     )
     empty = FakeClassroom(courses=[], work={}, pending={})

@@ -45,6 +45,9 @@ LOGIN_TIMEOUT = 120
 # Estados de entrega que ainda precisam de ação do aluno.
 PENDING_STATES = ["NEW", "CREATED", "RECLAIMED_BY_STUDENT"]
 
+# Atividades sem prazo só aparecem se foram passadas nesse período, no chat e no painel.
+CLASSROOM_DAYS = 30
+
 
 def accounts(request=""):
     """E-mails de GOOGLE_ACCOUNTS (separados por vírgula). Vazio = uma conta, sem e-mail definido.
@@ -272,13 +275,20 @@ def format_event(item):
 
 
 def classroom_summary(account_services=None, request="", since=None):
-    """Atividades pendentes; com `since`, só as criadas a partir dessa data."""
+    """Atividades pendentes com prazo de hoje em diante, e as sem prazo passadas desde `since`.
+
+    Sem `since`, vale o período de CLASSROOM_DAYS. As vencidas não aparecem; só a quantidade.
+    """
+
+    since = since or datetime.now().astimezone() - timedelta(days=CLASSROOM_DAYS)
+    today = datetime.combine(datetime.now().date(), datetime.min.time())
 
     account_services = account_services or services("classroom", "v1", request)
     many = len(account_services) > 1
 
     pending = []
     errors = []
+    overdue = 0
 
     for account, service in account_services:
         if isinstance(service, Exception):
@@ -286,10 +296,11 @@ def classroom_summary(account_services=None, request="", since=None):
             continue
 
         try:
-            pending += [
-                (due, course + label(account, many), title, link)
-                for due, course, title, link in pending_work(service, since)
-            ]
+            for due, course, title, link, created in pending_work(service):
+                if due and due < today:
+                    overdue += 1
+                elif due or created >= since:
+                    pending.append((due, course + label(account, many), title, link))
 
         except Exception as error:
             errors.append(f"Não consegui ler o Classroom de {account}: {short_error(error)}")
@@ -310,11 +321,14 @@ def classroom_summary(account_services=None, request="", since=None):
     else:
         lines = []
 
+    if overdue and lines:
+        lines.append(f"({overdue} com prazo vencido não mostradas.)")
+
     return "\n".join(lines + errors)
 
 
-def pending_work(service, since=None):
-    """Retorna [(prazo, turma, título, link)] das atividades pendentes de uma conta."""
+def pending_work(service):
+    """Retorna [(prazo, turma, título, link, criação)] das atividades pendentes de uma conta."""
 
     courses = service.courses().list(studentId="me", courseStates=["ACTIVE"]).execute().get("courses", [])
     pending = []
@@ -335,8 +349,9 @@ def pending_work(service, since=None):
         work = service.courses().courseWork().list(courseId=course["id"]).execute().get("courseWork", [])
 
         for item in work:
-            if item["id"] in pending_ids and (not since or created_at(item) >= since):
-                pending.append((due_date(item), course["name"], item.get("title", "(sem título)"), item.get("alternateLink")))
+            if item["id"] in pending_ids:
+                pending.append((due_date(item), course["name"], item.get("title", "(sem título)"),
+                                item.get("alternateLink"), created_at(item)))
 
     return pending
 

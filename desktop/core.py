@@ -99,7 +99,14 @@ WEEKDAYS = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "doming
 def now_context():
     # Sem a data, a IA não sabe o que é "amanhã às 14h" ao mexer na agenda.
     now = datetime.now()
-    return [{"role": "system", "content": f"Agora: {WEEKDAYS[now.weekday()]}, {now:%Y-%m-%d %H:%M} (horário local)."}]
+    text = f"Agora: {WEEKDAYS[now.weekday()]}, {now:%Y-%m-%d %H:%M} (horário local)."
+    # O que o usuário escolheu nas preferências vale mais que o que a IA lembra de conversas antigas.
+    chosen = settings.load()["classroom_accounts"]
+
+    if chosen:
+        text += f" Contas do Classroom escolhidas nas preferências: {', '.join(chosen)}."
+
+    return [{"role": "system", "content": text}]
 
 
 def ask(text, history, extra=None):
