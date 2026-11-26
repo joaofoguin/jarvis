@@ -1,6 +1,7 @@
 import pytest
 
 from router import (
+    HISTORY_CONVERSATION, HISTORY_LAST, HISTORY_TODAY, detect_history,
     ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, MEMORY_PREFIX, WHATSAPP_PREFIX,
     command_for_tool, detect_browser, detect_command, detect_contact, detect_google, is_allowed_command, memory_args,
     plain,
@@ -167,3 +168,19 @@ def test_tool_arguments_out_of_format_use_defaults():
     assert command_for_tool("ver_agenda", None) == ("google_agenda:1", "Um momento, senhor. Estou consultando.")
     assert command_for_tool("ver_agenda", {"dias": "amanhã"})[0] == "google_agenda:1"
     assert command_for_tool("enviar_whatsapp", ["Amor", "oi"]) is None
+
+
+@pytest.mark.parametrize("text, command", [
+    ("Apague o que eu acabei de dizer", HISTORY_LAST),
+    ("jarvis, apaga o que eu falei", HISTORY_LAST),
+    ("exclua a última conversa", HISTORY_CONVERSATION),
+    ("Apague tudo que eu disse hoje", HISTORY_TODAY),
+    ("limpa o histórico de hoje", HISTORY_TODAY),
+])
+def test_history_deletion_is_recognized(text, command):
+    assert detect_history(text) == command
+
+
+@pytest.mark.parametrize("text", ["esqueça que eu gosto de café", "apague o arquivo relatório no drive", "o que eu disse ontem?"])
+def test_other_requests_are_not_history_deletion(text):
+    assert detect_history(text) is None

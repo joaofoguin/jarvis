@@ -176,6 +176,8 @@
   .feed .entries div { overflow-wrap: anywhere; }
   .feed .entries time { color: var(--faint); margin-right: 8px; }
   .feed .answer { color: var(--muted); }
+  .feed summary .delete { flex-shrink: 0; padding: 0 6px; border: 1px solid transparent; background: none; color: var(--faint); font: 11px var(--mono); }
+  .feed summary .delete:hover, .feed summary .delete.armed { color: var(--accent); border-color: var(--line); }
 
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .stats b { display: block; font: 300 24px/1.1 var(--display); font-variant-numeric: tabular-nums; }
@@ -375,6 +377,25 @@
     return [element("span", { className: "muted", textContent: text })];
   }
 
+  function deleteButton(conversation) {
+    // Dois cliques: o primeiro pergunta, o segundo apaga.
+    const button = element("button", { type: "button", className: "delete", textContent: "×", ariaLabel: "Apagar conversa" });
+    button.onclick = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!button.classList.contains("armed")) {
+        button.classList.add("armed");
+        button.textContent = "apagar?";
+        return;
+      }
+
+      await api().delete_conversation(conversation.start, conversation.end);
+      loadSection("history");
+    };
+    return button;
+  }
+
   const RENDER = {
     agenda: (text) => $("agenda").replaceChildren(...lines(text).map((line) => element("div", { className: "row", textContent: line }))),
     classroom: (text) => $("classroom").replaceChildren(...lines(text).map((line) => element("div", { className: "task", textContent: line }))),
@@ -408,7 +429,8 @@
           element("summary", {}, [
             element("span", { className: "name", textContent: conversation.title }),
             element("span", { className: "count", textContent: conversation.entries.length }),
-            element("time", { textContent: conversation.end.slice(11) })
+            element("time", { textContent: conversation.end.slice(11) }),
+            deleteButton(conversation)
           ]),
           element("div", { className: "entries" }, conversation.entries.map((entry) => element("div", {}, [
             element("time", { textContent: `[${entry.when.slice(11)}]` }),

@@ -10,3 +10,5 @@ __pycache__/
 .pytest_cache/
 credentials.json
 google_token*.json
+JARVIS.exe
+build/

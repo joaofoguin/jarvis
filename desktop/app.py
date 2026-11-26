@@ -16,12 +16,14 @@ import keyboard
 import pystray
 import webview
 
+import updater
 from agent import agent
-from desktop import dashboard, notices, orb, settings
+from desktop import connections, dashboard, notices, orb, settings
 from desktop.core import reply_to
 from desktop.orb import Orb
 from desktop.panel import Panel
 from desktop.voice import Voice
+from router import HISTORY_CONVERSATION, HISTORY_LAST, HISTORY_TODAY, detect_history
 
 
 HOTKEY = os.getenv("JARVIS_HOTKEY", "ctrl+alt+j")
@@ -30,6 +32,19 @@ WEB = Path(__file__).resolve().parent / "web"
 
 # De quanto em quanto tempo o mural do Classroom é consultado, em segundos.
 NOTICES_INTERVAL = 300
+
+# Segundos depois de abrir até conferir os logins (Google e iCloud), para não atrasar a abertura.
+CONNECTIONS_DELAY = 5
+
+# De quanto em quanto tempo o app procura uma versão nova no GitHub, em segundos.
+UPDATES_INTERVAL = 1800
+
+# Pedidos de apagar o histórico, como na Alexa ("apague o que eu acabei de dizer").
+FORGET_HISTORY = {
+    HISTORY_LAST: dashboard.forget_last,
+    HISTORY_CONVERSATION: dashboard.forget_conversation,
+    HISTORY_TODAY: dashboard.forget_today
+}
 
 
 ICON_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (256, 256)]
@@ -77,6 +92,50 @@ def watch_notices(jarvis, icon):
             print("ERRO NOS AVISOS DO CLASSROOM:", repr(error))
 
         time.sleep(NOTICES_INTERVAL)
+
+
+def check_connections(jarvis, icon):
+    """Avisa no chat, logo depois de abrir, se algum login venceu, para não ser pego de surpresa."""
+
+    if jarvis.stopping.wait(CONNECTIONS_DELAY):
+        return
+
+    text = updater.report(updater.last_result())
+    if text:
+        jarvis.write("jarvis", text)
+
+    try:
+        working, problems = connections.check()
+
+    except Exception as error:
+        print("ERRO AO CONFERIR AS CONEXÕES:", repr(error))
+        return
+
+    text = connections.report(working, problems)
+
+    if text:
+        jarvis.write("jarvis", text)
+
+    if problems:
+        icon.notify("Algum login precisa ser refeito. Veja no chat.", "JARVIS")
+
+
+def watch_updates(jarvis, icon):
+    """Com o app aberto, avisa quando há versão nova no GitHub. Atualizar é pelo ícone, para não cortar uma conversa."""
+
+    warned = 0
+
+    while not jarvis.stopping.wait(UPDATES_INTERVAL):
+        try:
+            new = updater.behind()
+
+        except Exception as error:
+            print("ERRO AO PROCURAR ATUALIZAÇÃO:", repr(error))
+            continue
+
+        if new > warned:
+            warned = new
+            icon.notify("Há uma versão nova. Use \"Atualizar e reiniciar\" neste ícone.", "JARVIS")
 
 
 def run_agent(jarvis):
@@ -142,6 +201,10 @@ class Jarvis:
 
     def load_section(self, name):
         return dashboard.load(name)
+
+    def delete_conversation(self, start, end):
+        # O botão de apagar do feed de conversas.
+        self.forget_history(lambda: dashboard.forget_between(start, end))
 
     def open_link(self, url):
         # Só links da web, abertos no navegador padrão.
@@ -216,7 +279,28 @@ class Jarvis:
             print("ERRO NA RESPOSTA:", repr(error))
             self.write("jarvis", f"Desculpe, senhor. Algo deu errado: {error}")
 
+    def forget_history(self, forget):
+        """Apaga do histórico e esquece a conversa que a IA ainda tinha na memória."""
+
+        with self.turn:
+            removed = forget()
+            self.history = []
+
+        return removed
+
     def reply(self, text, say):
+        command = detect_history(text)
+
+        if command:
+            # Não vai para a IA nem para o histórico: a frase pode ter sido captada sem querer.
+            removed = self.forget_history(FORGET_HISTORY[command])
+            answer = f"Pronto, senhor. Apaguei {removed} pedido(s) do histórico." if removed else "Não havia nada para apagar, senhor."
+            self.write("jarvis", answer)
+
+            if say:
+                say(answer)
+            return
+
         with self.turn:
             # As ações executadas entram no histórico junto com o texto, para "tenta de novo" funcionar.
             actions = []
@@ -277,7 +361,7 @@ def main():
     panel = jarvis.panel = Panel(jarvis, panel_window)
     chat.expose(
         jarvis.send, jarvis.talk, jarvis.hide_chat, jarvis.open_panel,
-        jarvis.toggle_fullscreen, jarvis.load_section, jarvis.open_link
+        jarvis.toggle_fullscreen, jarvis.load_section, jarvis.open_link, jarvis.delete_conversation
     )
     panel_window.expose(
         panel.load_panel, panel.load_usage, panel.save_preferences, panel.preview_voice,
@@ -295,6 +379,10 @@ def main():
         chat.destroy()
         panel_window.destroy()
 
+    def update_and_restart():
+        updater.restart()
+        quit_app()
+
     icon = jarvis.icon = pystray.Icon(
         "jarvis",
         orb.icon(preferences["accent"], 64),
@@ -304,12 +392,15 @@ def main():
             pystray.MenuItem("Falar agora", lambda: jarvis.talk()),
             pystray.MenuItem("Mostrar ou esconder o orbe", lambda: jarvis.toggle_orb()),
             pystray.MenuItem("Preferências", lambda: jarvis.open_panel()),
+            pystray.MenuItem("Atualizar e reiniciar", update_and_restart),
             pystray.MenuItem("Sair", quit_app)
         )
     )
     icon.run_detached()
     threading.Thread(target=watch_notices, args=(jarvis, icon), daemon=True).start()
     threading.Thread(target=run_agent, args=(jarvis,), daemon=True).start()
+    threading.Thread(target=check_connections, args=(jarvis, icon), daemon=True).start()
+    threading.Thread(target=watch_updates, args=(jarvis, icon), daemon=True).start()
 
     keyboard.add_hotkey(HOTKEY, jarvis.toggle_chat)
 
