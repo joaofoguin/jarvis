@@ -7,7 +7,7 @@
 - Comandos conhecidos são resolvidos em `router.py`, sem IA. Só perguntas abertas vão para `llm.py`.
 - Toda chamada de IA registra tokens na tabela `ai_usage` (`sql/ai_usage.sql`). Mantenha esse registro em qualquer novo provedor.
 - As rotas da fila exigem `AGENT_TOKEN`. O agente fecha cada comando como `completed`, `failed` ou `rejected`.
-- Ações que a IA pode escolher ficam em `TOOLS` (`llm.py`) e viram comandos por `command_for_tool` (`router.py`). Tarefas `claude_code:` rodam só dentro de `JARVIS_WORKSPACE`, sem Bash.
+- Ações que a IA pode escolher ficam em `TOOLS` (`llm.py`) e viram comandos por `command_for_tool` (`router.py`). Tarefas `claude_code:` rodam em `JARVIS_WORKSPACE`, podem editar nas pastas do usuário (`local_files.roots()`, via `--add-dir`) e nunca usam Bash.
 - O chat remoto (`web/index.html`, rota `/app`) usa `/api/chat` em `main.py`, que passa pelo mesmo `handle_question` da Alexa. Não crie um segundo backend.
 - A janela de chat (`desktop/`) reusa `router.py`, `llm.py` e as ações de `agent/agent.py`. Não duplique essa lógica.
 - Google (Agenda, Classroom, mural do Classroom e YouTube) é só leitura e só no notebook (`google_data.py`, `desktop/notices.py`). Telas automáticas nunca abrem o login do Google sozinhas. Nunca versione `credentials.json` nem `google_token*.json`.
@@ -17,6 +17,7 @@
 - A voz (`desktop/voice.py`) detecta "Hey Jarvis" no notebook e só depois manda o áudio para o reconhecimento. As preferências ficam em `~/.jarvis/preferencias.json` (`desktop/settings.py`).
 - O painel de preferências (`desktop/panel.py`) só adiciona repositórios de Skills do GitHub validados, clonados sem terminal, e nunca substitui uma skill que já existe.
 - O que o usuário ensina fica em `memory.py` (arquivos em `~/.jarvis/memoria`). Só os fatos ligados à pergunta vão para a IA; não mande a memória inteira.
+- Abrir e apagar arquivos (`local_files.py`) vale só nas pastas do usuário (Downloads, Documentos, Área de Trabalho...) e na `JARVIS_WORKSPACE`, nunca em pastas ocultas, do sistema, nem `.env`/credenciais. Programas e scripts não são abertos; apagar pede "sim" e vai para a Lixeira.
 - O agente local só executa ações de uma lista permitida. Nunca execute texto livre como comando de terminal.
 - Nunca versione `.env`, chaves ou strings de conexão.
 - Testes: `pip install -r requirements-dev.txt` e `python -m pytest`. Não chame APIs reais nos testes.

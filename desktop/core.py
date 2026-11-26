@@ -2,16 +2,18 @@ import browser
 import drive_data
 import google_data
 import icloud_data
+import local_files
 import memory
 import reports
 import whatsapp_app
 
 from agent.agent import call_claude_code, run_action
-from llm import BROWSER_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, MEMORY_TOOLS, TOOLS, LLMError, ask_llm
+from llm import BROWSER_TOOLS, FILE_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, MEMORY_TOOLS, TOOLS, LLMError, ask_llm
 from router import (
     CLAUDE_CODE_PREFIX, DRIVE_PREFIX, DRIVE_READS, FORGET_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
-    ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, MEMORY_PREFIX, WHATSAPP_PREFIX,
-    detect_browser, detect_command, detect_contact, detect_drive, detect_google, drive_args, memory_args, normalize,
+    ICLOUD_CONTACT_PREFIX, INSTAGRAM_MESSAGES, LOCAL_FILE_PREFIX, MEMORY_PREFIX, WHATSAPP_PREFIX,
+    detect_browser, detect_command, detect_contact, detect_drive, detect_google, drive_args, local_file_args, memory_args,
+    normalize,
     plain, whatsapp_args
 )
 
@@ -91,7 +93,7 @@ def ask(text, history, extra=None):
     # Só os fatos da memória ligados à pergunta vão junto, para gastar poucos tokens.
     return ask_llm(
         text, "desktop", memory.context(text) + history[-HISTORY_LIMIT:] + (extra or []),
-        TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS + MEMORY_TOOLS
+        TOOLS + GOOGLE_TOOLS + BROWSER_TOOLS + ICLOUD_TOOLS + MEMORY_TOOLS + FILE_TOOLS
     )
 
 
@@ -234,6 +236,21 @@ def run_command(command, answer, text):
         pending_action = "Editando, senhor.", lambda: drive_data.edit(action, drive, docs, file, value, new_value), command
         return f"{drive_data.edit_question(action, file, value, new_value)} Responda \"sim\" para confirmar.", None
 
+    if command.startswith(LOCAL_FILE_PREFIX):
+        action, name = local_file_args(command)
+
+        try:
+            path = local_files.find(name)
+
+            if action == "abrir":
+                return local_files.open_file(path), None
+
+        except Exception as error:
+            return f"Desculpe, senhor. Não consegui: {error}", None
+
+        pending_action = "Apagando, senhor.", lambda: run_local(local_files.delete, path), command
+        return f"Apagar {local_files.relative(path)}? Ele vai para a Lixeira. Responda \"sim\" para confirmar.", None
+
     if command == INSTAGRAM_MESSAGES:
         return answer, lambda: run_browser(browser.instagram_unread)
 
@@ -287,6 +304,15 @@ def run_icloud(function, *args):
     except Exception as error:
         print("ERRO NO ICLOUD:", repr(error))
         return f"Desculpe, senhor. Não consegui consultar o iCloud: {error}"
+
+
+def run_local(function, *args):
+    try:
+        return function(*args)
+
+    except Exception as error:
+        print("ERRO NO ARQUIVO:", repr(error))
+        return f"Desculpe, senhor. Não consegui mexer no arquivo: {error}"
 
 
 def run_whatsapp(phone, message):

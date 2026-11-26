@@ -12,3 +12,4 @@ SpeechRecognition
 sounddevice
 edge-tts
 pywebview
+send2trash
