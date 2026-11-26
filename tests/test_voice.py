@@ -26,7 +26,7 @@ def fake_sr(monkeypatch):
         UnknownValueError=type("UnknownValueError", (Exception,), {}),
         RequestError=type("RequestError", (Exception,), {}),
         AudioSource=object,
-        Recognizer=lambda: None
+        Recognizer=types.SimpleNamespace
     )
     monkeypatch.setitem(sys.modules, "speech_recognition", module)
     return module
@@ -196,7 +196,7 @@ def test_microphone_reads_16khz_mono_without_pyaudio(fake_sr, monkeypatch):
 
 def test_clicking_again_cancels_the_conversation(fake_sr, monkeypatch):
     jarvis, heard, states = make_voice()
-    fake_sr.Recognizer = lambda: None
+    fake_sr.Recognizer = types.SimpleNamespace
 
     def listen(recognizer, source):
         # O segundo clique chega enquanto ele ouve.
@@ -261,3 +261,19 @@ def test_jarvis_voice_is_antonio_with_lower_pitch():
 
     assert "jarvis" in settings.VOICES
     assert voice.VOICE_PRESETS["jarvis"][0] in settings.VOICES
+
+
+def test_a_short_pause_does_not_end_the_request(fake_sr, monkeypatch):
+    jarvis, heard, _ = make_voice()
+    used = []
+
+    def listen(recognizer, source):
+        used.append(recognizer.pause_threshold)
+        return None
+
+    monkeypatch.setattr(jarvis, "listen", listen)
+
+    jarvis.converse(source=None)
+
+    assert used == [voice.PAUSE_THRESHOLD]
+    assert voice.PAUSE_THRESHOLD > 1
