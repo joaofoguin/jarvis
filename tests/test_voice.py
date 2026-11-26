@@ -134,7 +134,7 @@ def test_say_uses_chosen_voice_and_keeps_links_on_screen(monkeypatch):
     jarvis, _, states = make_voice(voice="pt-BR-FranciscaNeural", rate="+10%")
     calls = []
     monkeypatch.setattr(voice, "synthesize", lambda text, name, rate: calls.append((text, name, rate)) or "fala.mp3")
-    monkeypatch.setattr(voice, "play", calls.append)
+    monkeypatch.setattr(voice, "play", lambda path, cancel: calls.append(path))
 
     jarvis.say("Relatório pronto: https://exemplo.com/a.pdf")
 
@@ -192,3 +192,51 @@ def test_microphone_reads_16khz_mono_without_pyaudio(fake_sr, monkeypatch):
 
     assert source.input.events == ["start", "stop", "close"]
     assert source.stream is None
+
+
+def test_clicking_again_cancels_the_conversation(fake_sr, monkeypatch):
+    jarvis, heard, states = make_voice()
+    fake_sr.Recognizer = lambda: None
+
+    def listen(recognizer, source):
+        # O segundo clique chega enquanto ele ouve.
+        jarvis.toggle()
+        return "isso foi captado sem querer"
+
+    monkeypatch.setattr(jarvis, "listen", listen)
+    jarvis.trigger.set()
+
+    jarvis.converse(source=None)
+
+    assert heard == []
+    assert states == ["listening", "idle"]
+    assert not jarvis.busy and not jarvis.cancel.is_set()
+
+
+def test_click_starts_listening_when_idle():
+    jarvis, _, _ = make_voice()
+
+    jarvis.toggle()
+
+    assert jarvis.trigger.is_set()
+    assert not jarvis.cancel.is_set()
+
+
+def test_cancelled_microphone_stops_reading(fake_sr, monkeypatch):
+    import threading
+
+    monkeypatch.setitem(sys.modules, "sounddevice", types.SimpleNamespace(RawInputStream=FakeInputStream))
+    cancel = threading.Event()
+
+    with voice.microphone(cancel) as source:
+        cancel.set()
+        with pytest.raises(voice.Cancelled):
+            source.stream.read(4)
+
+
+def test_cancelled_reply_is_not_spoken(monkeypatch):
+    jarvis, _, _ = make_voice()
+    monkeypatch.setattr(voice, "synthesize", lambda *args: pytest.fail("não deveria falar"))
+    jarvis.cancel.set()
+
+    jarvis.say("Resposta")

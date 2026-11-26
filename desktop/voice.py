@@ -29,10 +29,15 @@ PHRASE_LIMIT = 15
 URL_PATTERN = re.compile(r"https?://\S+")
 
 
-def microphone():
+class Cancelled(Exception):
+    """Você clicou de novo no orbe: a escuta para no meio."""
+
+
+def microphone(cancel=None):
     """O microfone padrão pelo sounddevice, no formato que o SpeechRecognition espera.
 
     O sounddevice já vem pronto para qualquer versão do Python no Windows, sem compilar nada.
+    Com cancel (um threading.Event) ligado, a próxima leitura levanta Cancelled.
     """
 
     import sounddevice
@@ -58,6 +63,9 @@ def microphone():
             self.stream = None
 
         def read(self, size):
+            if cancel is not None and cancel.is_set():
+                raise Cancelled()
+
             data, _ = self.input.read(size)
             return bytes(data)
 
@@ -93,13 +101,23 @@ def synthesize(text, voice, rate):
     return path
 
 
-def play(path):
+def play(path, cancel=None):
     import ctypes
+    import time
 
     # O Windows toca MP3 sozinho, sem precisar de outro programa.
     mci = ctypes.windll.winmm.mciSendStringW
+    mode = ctypes.create_unicode_buffer(32)
     mci(f'open "{path}" type mpegvideo alias jarvis_fala', None, 0, None)
-    mci("play jarvis_fala wait", None, 0, None)
+    mci("play jarvis_fala", None, 0, None)
+
+    # Toca sem travar, para um clique no orbe conseguir parar a fala no meio.
+    while not (cancel and cancel.is_set()):
+        mci("status jarvis_fala mode", mode, 32, None)
+        if mode.value != "playing":
+            break
+        time.sleep(0.1)
+
     mci("close jarvis_fala", None, 0, None)
 
 
@@ -121,16 +139,27 @@ class Voice:
         # Pede para ouvir agora, sem "Hey Jarvis" (pelo menu do ícone).
         self.trigger = threading.Event()
         self.stop = threading.Event()
+        # Um clique durante a conversa liga cancel: para de ouvir ou de falar e encerra a conversa.
+        self.cancel = threading.Event()
+        self.busy = False
+
+    def toggle(self):
+        """O clique no orbe: começa a ouvir ou, se já está numa conversa, cancela."""
+
+        if self.busy:
+            self.cancel.set()
+        else:
+            self.trigger.set()
 
     def run(self):
         while not self.stop.is_set():
             if self.wake_word:
-                with microphone() as source:
+                with microphone(self.cancel) as source:
                     if self.wait_for_wake(source):
                         self.converse(source)
 
             elif self.trigger.wait(0.5):
-                with microphone() as source:
+                with microphone(self.cancel) as source:
                     self.converse(source)
 
     def wait_for_wake(self, source):
@@ -154,19 +183,25 @@ class Voice:
         import speech_recognition as sr
 
         self.trigger.clear()
+        self.cancel.clear()
+        self.busy = True
         recognizer = sr.Recognizer()
 
-        while not self.stop.is_set():
-            self.on_state("listening")
-            text = self.listen(recognizer, source)
+        try:
+            while not self.stop.is_set() and not self.cancel.is_set():
+                self.on_state("listening")
+                text = self.listen(recognizer, source)
 
-            if not text:
-                break
+                if not text or self.cancel.is_set():
+                    break
 
-            self.on_state("thinking")
-            self.on_text(text)
+                self.on_state("thinking")
+                self.on_text(text)
 
-        self.on_state("idle")
+        finally:
+            self.busy = False
+            self.cancel.clear()
+            self.on_state("idle")
 
     def listen(self, recognizer, source):
         """A próxima frase em texto, ou None se você não falou nada que desse para entender."""
@@ -177,7 +212,7 @@ class Voice:
             audio = recognizer.listen(source, timeout=FOLLOW_UP_TIMEOUT, phrase_time_limit=PHRASE_LIMIT)
             return recognizer.recognize_google(audio, language="pt-BR")
 
-        except (sr.WaitTimeoutError, sr.UnknownValueError):
+        except (sr.WaitTimeoutError, sr.UnknownValueError, Cancelled):
             return None
 
         except sr.RequestError:
@@ -187,13 +222,14 @@ class Voice:
     def say(self, text):
         text = spoken(text)
 
-        if not self.speak_replies or not text:
+        # Cancelado no meio do pedido: a resposta fica só escrita no chat.
+        if not self.speak_replies or not text or self.cancel.is_set():
             return
 
         self.on_state("speaking")
 
         try:
-            play(synthesize(text, self.voice, self.rate))
+            play(synthesize(text, self.voice, self.rate), self.cancel)
 
         except Exception:
             # Sem internet a voz neural não funciona, mas a resposta continua escrita na tela.

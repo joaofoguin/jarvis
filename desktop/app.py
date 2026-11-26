@@ -179,7 +179,7 @@ class Jarvis:
         self.answer(text)
 
     def talk(self):
-        self.voice.trigger.set()
+        self.voice.toggle()
 
     def toggle_chat(self):
         if self.chat_visible:
