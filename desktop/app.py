@@ -16,6 +16,7 @@ import keyboard
 import pystray
 import webview
 
+import google_data
 import updater
 from agent import agent
 from desktop import connections, dashboard, notices, orb, settings
@@ -206,6 +207,12 @@ class Jarvis:
         # O botão de apagar do feed de conversas.
         self.forget_history(lambda: dashboard.forget_between(start, end))
 
+    def open_item(self, text):
+        # Clique num evento ou atividade do painel: abre no Google.
+        link = google_data.LINKS.get(text, "")
+        if link.startswith("https://"):
+            webbrowser.open(link)
+
     def open_link(self, url):
         # Só links da web, abertos no navegador padrão.
         if url.startswith("https://"):
@@ -361,7 +368,7 @@ def main():
     panel = jarvis.panel = Panel(jarvis, panel_window)
     chat.expose(
         jarvis.send, jarvis.talk, jarvis.hide_chat, jarvis.open_panel,
-        jarvis.toggle_fullscreen, jarvis.load_section, jarvis.open_link, jarvis.delete_conversation
+        jarvis.toggle_fullscreen, jarvis.load_section, jarvis.open_link, jarvis.delete_conversation, jarvis.open_item
     )
     panel_window.expose(
         panel.load_panel, panel.load_usage, panel.save_preferences, panel.preview_voice,

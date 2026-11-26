@@ -176,6 +176,8 @@
   .feed .entries div { overflow-wrap: anywhere; }
   .feed .entries time { color: var(--faint); margin-right: 8px; }
   .feed .answer { color: var(--muted); }
+  .rows .link { cursor: pointer; }
+  .rows .link:hover { color: var(--accent); }
   .feed summary .delete { flex-shrink: 0; padding: 0 6px; border: 1px solid transparent; background: none; color: var(--faint); font: 11px var(--mono); }
   .feed summary .delete:hover, .feed summary .delete.armed { color: var(--accent); border-color: var(--line); }
 
@@ -377,6 +379,13 @@
     return [element("span", { className: "muted", textContent: text })];
   }
 
+  // Evento ou atividade: o clique abre no Google (linhas sem link, como avisos de erro, não fazem nada).
+  function clickable(className, line) {
+    const row = element("div", { className: `${className} link`, textContent: line, title: "Abrir no Google" });
+    row.onclick = () => api().open_item(line);
+    return row;
+  }
+
   function deleteButton(conversation) {
     // Dois cliques: o primeiro pergunta, o segundo apaga.
     const button = element("button", { type: "button", className: "delete", textContent: "×", ariaLabel: "Apagar conversa" });
@@ -397,8 +406,8 @@
   }
 
   const RENDER = {
-    agenda: (text) => $("agenda").replaceChildren(...lines(text).map((line) => element("div", { className: "row", textContent: line }))),
-    classroom: (text) => $("classroom").replaceChildren(...lines(text).map((line) => element("div", { className: "task", textContent: line }))),
+    agenda: (text) => $("agenda").replaceChildren(...lines(text).map((line) => clickable("row", line))),
+    classroom: (text) => $("classroom").replaceChildren(...lines(text).map((line) => clickable("task", line))),
     news: (items) => {
       const topics = [...new Set(items.map((item) => item.topic))];
 

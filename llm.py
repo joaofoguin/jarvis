@@ -38,7 +38,9 @@ MENSAGENS: para enviar ou mudar uma mensagem de WhatsApp, use sempre enviar_what
 já escrito. O sistema pede a confirmação ao usuário; não peça confirmação em texto.
 
 ARQUIVOS: para mudar um arquivo do Google Drive, use editar_arquivo_drive com o texto final. O sistema também
-pede a confirmação. Para abrir ou apagar um arquivo do computador (por exemplo, um que o Claude Code acabou de
+pede a confirmação. Para criar, mudar ou apagar um compromisso da agenda, use criar_evento, mudar_evento ou
+apagar_evento com data e hora completas (AAAA-MM-DDTHH:MM); o sistema também pede a confirmação. Para abrir
+um evento ou uma atividade do Classroom no navegador, use abrir_no_google. Para abrir ou apagar um arquivo do computador (por exemplo, um que o Claude Code acabou de
 criar), use abrir_arquivo ou apagar_arquivo; apagar também pede a confirmação.
 
 MEMÓRIA: use lembrar só para algo novo ou corrigido. Se a informação já está na sua memória, não guarde de novo.
@@ -74,7 +76,47 @@ TOOLS = [tool(item["tool"], item["description"]) for item in COMMANDS] + [
 
 
 # Só a janela de chat do notebook oferece estas, porque o login do Google fica nele.
+EVENT_TIME = {"type": "string", "description": "Data e hora no formato AAAA-MM-DDTHH:MM, no horário local."}
+
 GOOGLE_TOOLS = [
+    tool(
+        "criar_evento",
+        "Cria um compromisso na Google Agenda ou no calendário do iPhone (iCloud). O usuário confirma antes.",
+        {
+            "titulo": {"type": "string"},
+            "inicio": EVENT_TIME,
+            "fim": {**EVENT_TIME, "description": "Opcional. Sem fim, o evento dura 1 hora."},
+            "conta": {"type": "string", "description": "Opcional: parte do e-mail da conta, se o usuário disser qual."},
+            "agenda": {
+                "type": "string", "enum": ["google", "icloud"],
+                "description": "google só se o usuário falar em Google; senão, icloud (calendário do iPhone)."
+            }
+        },
+        ["titulo", "inicio"]
+    ),
+    tool(
+        "mudar_evento",
+        "Muda o título ou o horário de um compromisso da Google Agenda ou do iPhone. O usuário confirma antes.",
+        {
+            "evento": {"type": "string", "description": "Parte do título do evento atual."},
+            "titulo": {"type": "string", "description": "Opcional: o novo título."},
+            "inicio": {**EVENT_TIME, "description": "Opcional: o novo início, AAAA-MM-DDTHH:MM."},
+            "fim": {**EVENT_TIME, "description": "Opcional: o novo fim."}
+        },
+        ["evento"]
+    ),
+    tool(
+        "apagar_evento",
+        "Apaga um compromisso da Google Agenda ou do iPhone. O usuário confirma antes.",
+        {"evento": {"type": "string", "description": "Parte do título do evento."}},
+        ["evento"]
+    ),
+    tool(
+        "abrir_no_google",
+        "Abre no navegador um evento da agenda ou uma atividade do Classroom, pelo nome.",
+        {"item": {"type": "string", "description": "Parte do título do evento ou da atividade."}},
+        ["item"]
+    ),
     tool(
         "ver_agenda",
         "Lista os compromissos da Google Agenda do usuário a partir de hoje.",

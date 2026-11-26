@@ -365,8 +365,29 @@ def test_revoked_token_logs_in_again_from_the_chat(monkeypatch, tmp_path):
             return ExpiredCredentials()
 
     monkeypatch.setattr("google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file", lambda *args: Flow())
+    monkeypatch.setattr(google_data, "signed_in_email", lambda creds, scopes: "Eu@gmail.com")
 
     assert isinstance(google_data.get_credentials("eu@gmail.com"), ExpiredCredentials)
+
+
+def test_login_with_another_google_account_is_refused_and_not_saved(monkeypatch, tmp_path):
+    revoked_token(monkeypatch, tmp_path)
+    monkeypatch.setenv("GOOGLE_CREDENTIALS", str(tmp_path / "token.json"))
+    saved = []
+
+    class Flow:
+        def run_local_server(self, **kwargs):
+            creds = ExpiredCredentials()
+            creds.to_json = lambda: saved.append(1) or "{}"
+            return creds
+
+    monkeypatch.setattr("google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file", lambda *args: Flow())
+    monkeypatch.setattr(google_data, "signed_in_email", lambda creds, scopes: "pessoal@gmail.com")
+
+    with pytest.raises(google_data.WrongAccount, match="feito com pessoal@gmail.com"):
+        google_data.get_credentials("joao@discente.uenp.edu.br")
+
+    assert saved == []
 
 
 def test_google_files_live_in_the_project_folder_wherever_the_app_starts(monkeypatch, tmp_path):

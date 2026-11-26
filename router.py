@@ -1,6 +1,7 @@
 import json
 import re
 import unicodedata
+from datetime import datetime
 
 
 # Comandos conhecidos são resolvidos aqui, sem gastar tokens de IA.
@@ -89,6 +90,10 @@ CONTACT_PATTERN = re.compile(
 )
 
 # Memória do JARVIS: a IA guarda e apaga itens (assunto, chave, valor), só no notebook.
+CALENDAR_PREFIX = "google_evento:"
+CALENDAR_ACTIONS = {"criar", "mudar", "apagar"}
+GOOGLE_OPEN_PREFIX = "google_abrir:"
+
 LOCAL_FILE_PREFIX = "arquivo_local:"
 LOCAL_FILE_ACTIONS = {"abrir", "apagar"}
 LOCAL_FILE_MAX_NAME = 200
@@ -217,6 +222,37 @@ def drive_command(action, name, text="", new_text=""):
     return DRIVE_PREFIX + json.dumps([action, name, text, new_text], ensure_ascii=False), GOOGLE_ANSWER
 
 
+def calendar_command(action, event="", title="", start="", end="", account="", calendar=""):
+    """Criar, mudar ou apagar um evento da agenda, ou None se faltar algo ou a data não servir.
+
+    calendar: "google" para a Google Agenda; qualquer outro valor é o calendário do iPhone (iCloud).
+    """
+
+    calendar = "google" if str(calendar).lower() == "google" else "icloud"
+    parts = [" ".join(str(part or "").split())[:200] for part in (event, title, start, end, account)] + [calendar]
+    event, title, start, end, account, _ = parts
+
+    try:
+        for value in (start, end):
+            if value:
+                datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+    needed = {"criar": title and start, "mudar": event and (title or start), "apagar": event}
+
+    if action not in CALENDAR_ACTIONS or not needed[action]:
+        return None
+
+    return CALENDAR_PREFIX + json.dumps([action, *parts], ensure_ascii=False), GOOGLE_ANSWER
+
+
+def calendar_args(command):
+    """Retorna (ação, evento, título, início, fim, conta, agenda) de um comando google_evento."""
+
+    return tuple(json.loads(command[len(CALENDAR_PREFIX):]))
+
+
 def local_file_command(action, name):
     """Abrir ou apagar um arquivo da pasta de trabalho, ou None se não servir."""
 
@@ -328,6 +364,15 @@ def command_for_tool(name, arguments):
         return drive_command(
             arguments.get("acao", ""), arguments.get("arquivo", ""), arguments.get("texto", ""), arguments.get("novo_texto", "")
         )
+
+    if name in ("criar_evento", "mudar_evento", "apagar_evento"):
+        return calendar_command(
+            name.split("_")[0], arguments.get("evento", ""), arguments.get("titulo", ""),
+            arguments.get("inicio", ""), arguments.get("fim", ""), arguments.get("conta", ""), arguments.get("agenda", "")
+        )
+
+    if name == "abrir_no_google" and str(arguments.get("item", "")).strip():
+        return GOOGLE_OPEN_PREFIX + " ".join(str(arguments["item"]).split())[:200], GOOGLE_ANSWER
 
     if name in ("abrir_arquivo", "apagar_arquivo"):
         return local_file_command(name.split("_")[0], arguments.get("arquivo", ""))
