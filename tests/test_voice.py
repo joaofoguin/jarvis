@@ -133,7 +133,7 @@ def test_recognition_offline_is_said_aloud(fake_sr, monkeypatch):
 def test_say_uses_chosen_voice_and_keeps_links_on_screen(monkeypatch):
     jarvis, _, states = make_voice(voice="pt-BR-FranciscaNeural", rate="+10%")
     calls = []
-    monkeypatch.setattr(voice, "synthesize", lambda text, name, rate: calls.append((text, name, rate)) or "fala.mp3")
+    monkeypatch.setattr(voice, "synthesize", lambda text, name, rate, part: calls.append((text, name, rate)) or "fala.mp3")
     monkeypatch.setattr(voice, "play", lambda path, cancel: calls.append(path))
 
     jarvis.say("Relatório pronto: https://exemplo.com/a.pdf")
@@ -240,3 +240,24 @@ def test_cancelled_reply_is_not_spoken(monkeypatch):
     jarvis.cancel.set()
 
     jarvis.say("Resposta")
+
+
+def test_long_answers_are_spoken_in_parts_and_cut(monkeypatch):
+    jarvis, _, _ = make_voice()
+    synthesized, played = [], []
+    monkeypatch.setattr(voice, "synthesize", lambda text, name, rate, part: synthesized.append(text) or f"{part}.mp3")
+    monkeypatch.setattr(voice, "play", lambda path, cancel: played.append(path))
+
+    jarvis.say("Hoje você tem três eventos. " + "Reunião às dez horas na sala de aula. " * 20)
+
+    assert len(synthesized) > 1
+    assert played == [f"{n}.mp3" for n in range(len(synthesized))]
+    assert synthesized[-1].endswith("O resto está na tela, senhor.")
+    assert sum(len(text) for text in synthesized) < voice.SPOKEN_LIMIT + 60
+
+
+def test_jarvis_voice_is_antonio_with_lower_pitch():
+    from desktop import settings
+
+    assert "jarvis" in settings.VOICES
+    assert voice.VOICE_PRESETS["jarvis"][0] in settings.VOICES

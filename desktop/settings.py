@@ -8,6 +8,7 @@ from pathlib import Path
 
 # Vozes neurais em português que o painel oferece.
 VOICES = {
+    "jarvis": "JARVIS, masculina mais grave",
     "pt-BR-AntonioNeural": "Antônio, masculina",
     "pt-BR-FranciscaNeural": "Francisca, feminina",
     "pt-BR-ThalitaMultilingualNeural": "Thalita, feminina"

@@ -18,7 +18,11 @@ SAMPLE_RATE = 16000
 FRAME = 1280
 
 WAKE_MODEL = "hey_jarvis"
-WAKE_THRESHOLD = 0.5
+# Mais alto = precisa de um "Hey Jarvis" mais claro. 0.5 disparava com conversas em volta.
+WAKE_THRESHOLD = 0.7
+
+# Detector de voz humana do openWakeWord: barulho e música não disparam a ativação.
+VAD_THRESHOLD = 0.5
 
 # Depois de responder, o JARVIS espera esse tempo (em segundos) por mais uma fala,
 # sem precisar de "Hey Jarvis" de novo. Assim dá para conversar.
@@ -27,6 +31,15 @@ FOLLOW_UP_TIMEOUT = 6
 PHRASE_LIMIT = 15
 
 URL_PATTERN = re.compile(r"https?://\S+")
+
+# Respostas longas (agenda, Classroom) ficam inteiras na tela; em voz, só o começo.
+SPOKEN_LIMIT = 400
+
+# A fala é gerada em partes: a primeira toca enquanto a próxima é gerada, sem esperar o texto todo.
+PART_LIMIT = 180
+
+# Vozes do painel que são uma voz neural com ajuste de tom.
+VOICE_PRESETS = {"jarvis": ("pt-BR-AntonioNeural", "-12Hz")}
 
 
 class Cancelled(Exception):
@@ -84,20 +97,45 @@ def wake_model():
 
     # Baixa o modelo só na primeira vez.
     openwakeword.utils.download_models([WAKE_MODEL])
-    return Model(wakeword_models=[WAKE_MODEL], inference_framework="onnx")
+    return Model(wakeword_models=[WAKE_MODEL], inference_framework="onnx", vad_threshold=VAD_THRESHOLD)
 
 
 def spoken(text):
-    """O texto como deve ser falado: links ficam só na tela."""
+    """O texto como deve ser falado: links ficam só na tela, e respostas longas são cortadas."""
 
-    return URL_PATTERN.sub("o link está na tela", text).replace("*", "").strip()
+    text = URL_PATTERN.sub("o link está na tela", text).replace("*", "").strip()
+
+    if len(text) > SPOKEN_LIMIT:
+        text = text[:SPOKEN_LIMIT].rsplit(" ", 1)[0] + "... O resto está na tela, senhor."
+
+    return text
 
 
-def synthesize(text, voice, rate):
+def parts(text):
+    """Divide a fala em frases, juntando as curtas até PART_LIMIT caracteres."""
+
+    result = []
+
+    for sentence in re.split(r"(?<=[.!?:;])\s+|\n+", text):
+        sentence = sentence.strip()
+
+        if not sentence:
+            continue
+
+        if result and len(result[-1]) + len(sentence) < PART_LIMIT:
+            result[-1] += " " + sentence
+        else:
+            result.append(sentence)
+
+    return result
+
+
+def synthesize(text, voice, rate, part=0):
     import edge_tts
 
-    path = Path(tempfile.gettempdir()) / "jarvis_fala.mp3"
-    asyncio.run(edge_tts.Communicate(text, voice, rate=rate).save(str(path)))
+    name, pitch = VOICE_PRESETS.get(voice, (voice, "+0Hz"))
+    path = Path(tempfile.gettempdir()) / f"jarvis_fala_{part}.mp3"
+    asyncio.run(edge_tts.Communicate(text, name, rate=rate, pitch=pitch).save(str(path)))
     return path
 
 
@@ -229,7 +267,16 @@ class Voice:
         self.on_state("speaking")
 
         try:
-            play(synthesize(text, self.voice, self.rate), self.cancel)
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                pending = [pool.submit(synthesize, part, self.voice, self.rate, index) for index, part in enumerate(parts(text))]
+
+                for future in pending:
+                    if self.cancel.is_set():
+                        break
+
+                    play(future.result(), self.cancel)
 
         except Exception:
             # Sem internet a voz neural não funciona, mas a resposta continua escrita na tela.
