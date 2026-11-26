@@ -450,6 +450,7 @@ def calendar(monkeypatch):
     event = {"id": "e1", "summary": "Dentista", "start": {"dateTime": "2026-11-27T10:00:00"}}
     service = types.SimpleNamespace(events=lambda: FakeEvents(log, [event]))
     monkeypatch.setattr(core.google_data, "services", lambda name, version, request="", only=None: [("a@b.com", service)])
+    monkeypatch.setattr(core.icloud_data, "configured", lambda: False)
     return log
 
 
@@ -480,6 +481,35 @@ def test_moving_and_deleting_find_the_event_and_ask_first(actions, calendar):
     core.run_command(command, "", "apague o dentista")
     core.reply_to("sim", [])[1]()
     assert calendar[-1] == ("delete", "e1")
+
+
+def test_new_events_go_to_icloud_unless_google_is_asked(actions, calendar, monkeypatch):
+    created = []
+    monkeypatch.setattr(core.icloud_data, "configured", lambda: True)
+    monkeypatch.setattr(core.icloud_data, "create_event", lambda title, start, end: created.append((title, start, end)) or "ok")
+    command, _ = command_for_tool("criar_evento", {"titulo": "Prova", "inicio": "2026-11-28T14:00"})
+
+    answer, _ = core.run_command(command, "", "marque a prova sábado às 14h")
+
+    assert "calendário do iPhone" in answer and created == []
+    assert core.reply_to("sim", [])[1]() == "ok"
+    assert created[0][0] == "Prova" and created[0][2].hour == 15 and calendar == []
+
+    command, _ = command_for_tool("criar_evento", {"titulo": "Prova", "inicio": "2026-11-28T14:00", "agenda": "google"})
+    assert "a@b.com" in core.run_command(command, "", "marque a prova no google")[0]
+
+
+def test_moving_an_event_looks_in_icloud_first(actions, calendar, monkeypatch):
+    monkeypatch.setattr(core.icloud_data, "configured", lambda: True)
+    monkeypatch.setattr(core.icloud_data, "find_event", lambda name: "evento")
+    monkeypatch.setattr(core.icloud_data, "describe", lambda event: "27/11 10:00 Dentista")
+    monkeypatch.setattr(core.icloud_data, "delete_event", lambda event: "apagado")
+    command, _ = command_for_tool("apagar_evento", {"evento": "dentista"})
+
+    answer, _ = core.run_command(command, "", "apague o dentista")
+
+    assert answer.startswith("Apagar 27/11 10:00 Dentista do calendário do iPhone?")
+    assert core.reply_to("sim", [])[1]() == "apagado" and calendar == []
 
 
 def test_invalid_calendar_tool_arguments_are_refused():

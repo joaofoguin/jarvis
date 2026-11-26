@@ -81,18 +81,22 @@ EVENT_TIME = {"type": "string", "description": "Data e hora no formato AAAA-MM-D
 GOOGLE_TOOLS = [
     tool(
         "criar_evento",
-        "Cria um compromisso na Google Agenda do usuário. O usuário confirma antes.",
+        "Cria um compromisso na Google Agenda ou no calendário do iPhone (iCloud). O usuário confirma antes.",
         {
             "titulo": {"type": "string"},
             "inicio": EVENT_TIME,
             "fim": {**EVENT_TIME, "description": "Opcional. Sem fim, o evento dura 1 hora."},
-            "conta": {"type": "string", "description": "Opcional: parte do e-mail da conta, se o usuário disser qual."}
+            "conta": {"type": "string", "description": "Opcional: parte do e-mail da conta, se o usuário disser qual."},
+            "agenda": {
+                "type": "string", "enum": ["google", "icloud"],
+                "description": "google só se o usuário falar em Google; senão, icloud (calendário do iPhone)."
+            }
         },
         ["titulo", "inicio"]
     ),
     tool(
         "mudar_evento",
-        "Muda o título ou o horário de um compromisso da Google Agenda. O usuário confirma antes.",
+        "Muda o título ou o horário de um compromisso da Google Agenda ou do iPhone. O usuário confirma antes.",
         {
             "evento": {"type": "string", "description": "Parte do título do evento atual."},
             "titulo": {"type": "string", "description": "Opcional: o novo título."},
@@ -103,7 +107,7 @@ GOOGLE_TOOLS = [
     ),
     tool(
         "apagar_evento",
-        "Apaga um compromisso da Google Agenda. O usuário confirma antes.",
+        "Apaga um compromisso da Google Agenda ou do iPhone. O usuário confirma antes.",
         {"evento": {"type": "string", "description": "Parte do título do evento."}},
         ["evento"]
     ),

@@ -189,6 +189,56 @@ def agenda_summary(days, calendar_list=None):
     return "\n".join(lines + errors)
 
 
+def find_event(name, calendar_list=None):
+    """O próximo evento do iCloud com esse nome (de ontem até 90 dias), ou None."""
+
+    start = datetime.now().astimezone() - timedelta(days=1)
+    wanted = name.lower()
+    found = []
+
+    for calendar in calendars() if calendar_list is None else calendar_list:
+        for event in calendar.search(start=start, end=start + timedelta(days=90), event=True):
+            component = event.icalendar_component
+
+            if component.get("dtstart") is not None and wanted in str(component.get("summary", "")).lower():
+                found.append((format_event(component["dtstart"].dt, str(component.get("summary")))[0], event))
+
+    return min(found, key=lambda entry: entry[0])[1] if found else None
+
+
+def describe(event):
+    component = event.icalendar_component
+    return format_event(component["dtstart"].dt, str(component.get("summary", "(sem título)")))[1]
+
+
+def create_event(title, start, end, calendar_list=None):
+    calendar = (calendars() if calendar_list is None else calendar_list)[0]
+    event = calendar.save_event(dtstart=start, dtend=end, summary=title)
+    return f"Pronto, senhor. Criei {describe(event)} no calendário do iPhone."
+
+
+def update_event(event, title="", start=None, end=None):
+    component = event.icalendar_component
+
+    if title:
+        component["summary"] = title
+
+    if start:
+        duration = component["dtend"].dt - component["dtstart"].dt if component.get("dtend") is not None else timedelta(hours=1)
+        component["dtstart"].dt = start
+        if component.get("dtend") is not None:
+            component["dtend"].dt = end or start + duration
+
+    event.save()
+    return f"Pronto, senhor. O evento do iPhone agora é {describe(event)}."
+
+
+def delete_event(event):
+    text = describe(event)
+    event.delete()
+    return f"Pronto, senhor. Apaguei {text} do calendário do iPhone."
+
+
 def format_event(start, title):
     # Eventos de dia inteiro só têm a data.
     if not isinstance(start, datetime):

@@ -1,5 +1,5 @@
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import browser
 import drive_data
@@ -303,8 +303,22 @@ def run_task(task):
     return f"O Claude Code falhou: {result}"
 
 
-def calendar_change(text, action, name, title, start, end, account):
-    """(pergunta de confirmação, função que faz a mudança). O evento é achado agora, para a pergunta ser exata."""
+def calendar_change(text, action, name, title, start, end, account, calendar="icloud"):
+    """(pergunta de confirmação, função que faz a mudança). O evento é achado agora, para a pergunta ser exata.
+
+    Criar vai para o iPhone (iCloud), ou para o Google se o usuário pediu ou o iCloud não está configurado.
+    Mudar e apagar procuram primeiro no iCloud e depois na Google Agenda.
+    """
+
+    icloud = icloud_data.configured()
+
+    if action == "criar" and calendar != "google" and icloud:
+        begin = google_data.parse_when(start)
+        finish = google_data.parse_when(end) if end else begin + timedelta(hours=1)
+        return (
+            f"Criar \"{title}\" em {begin:%d/%m às %H:%M} no calendário do iPhone?",
+            lambda: icloud_data.create_event(title, begin, finish)
+        )
 
     if action == "criar":
         found = [(email, service) for email, service in google_data.services("calendar", "v3", account or text)
@@ -318,7 +332,13 @@ def calendar_change(text, action, name, title, start, end, account):
         where = f" na agenda de {email}" if email else ""
         return f"Criar \"{title}\" em {when:%d/%m às %H:%M}{where}?", lambda: google_data.create_event(service, title, start, end)
 
+    found = icloud and icloud_data.find_event(name)
+
+    if found:
+        return icloud_change(action, found, title, start, end)
+
     email, service, event = google_data.find_event(name, google_data.services("calendar", "v3", text))
+
     current = google_data.format_event(event)
 
     if action == "apagar":
@@ -326,6 +346,18 @@ def calendar_change(text, action, name, title, start, end, account):
 
     new = " e ".join(filter(None, [title and f"título \"{title}\"", start and f"horário {google_data.parse_when(start):%d/%m %H:%M}"]))
     return f"Mudar {current} para {new}?", lambda: google_data.update_event(service, event, title, start, end)
+
+
+def icloud_change(action, event, title, start, end):
+    current = icloud_data.describe(event)
+
+    if action == "apagar":
+        return f"Apagar {current} do calendário do iPhone?", lambda: icloud_data.delete_event(event)
+
+    begin = google_data.parse_when(start) if start else None
+    finish = google_data.parse_when(end) if end else None
+    new = " e ".join(filter(None, [title and f"título \"{title}\"", begin and f"horário {begin:%d/%m %H:%M}"]))
+    return f"Mudar {current} no iPhone para {new}?", lambda: icloud_data.update_event(event, title, begin, finish)
 
 
 def open_in_google(name, text):

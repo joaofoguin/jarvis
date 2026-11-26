@@ -222,11 +222,15 @@ def drive_command(action, name, text="", new_text=""):
     return DRIVE_PREFIX + json.dumps([action, name, text, new_text], ensure_ascii=False), GOOGLE_ANSWER
 
 
-def calendar_command(action, event="", title="", start="", end="", account=""):
-    """Criar, mudar ou apagar um evento da agenda, ou None se faltar algo ou a data não servir."""
+def calendar_command(action, event="", title="", start="", end="", account="", calendar=""):
+    """Criar, mudar ou apagar um evento da agenda, ou None se faltar algo ou a data não servir.
 
-    parts = [" ".join(str(part or "").split())[:200] for part in (event, title, start, end, account)]
-    event, title, start, end, account = parts
+    calendar: "google" para a Google Agenda; qualquer outro valor é o calendário do iPhone (iCloud).
+    """
+
+    calendar = "google" if str(calendar).lower() == "google" else "icloud"
+    parts = [" ".join(str(part or "").split())[:200] for part in (event, title, start, end, account)] + [calendar]
+    event, title, start, end, account, _ = parts
 
     try:
         for value in (start, end):
@@ -244,7 +248,7 @@ def calendar_command(action, event="", title="", start="", end="", account=""):
 
 
 def calendar_args(command):
-    """Retorna (ação, evento, título, início, fim, conta) de um comando google_evento."""
+    """Retorna (ação, evento, título, início, fim, conta, agenda) de um comando google_evento."""
 
     return tuple(json.loads(command[len(CALENDAR_PREFIX):]))
 
@@ -364,7 +368,7 @@ def command_for_tool(name, arguments):
     if name in ("criar_evento", "mudar_evento", "apagar_evento"):
         return calendar_command(
             name.split("_")[0], arguments.get("evento", ""), arguments.get("titulo", ""),
-            arguments.get("inicio", ""), arguments.get("fim", ""), arguments.get("conta", "")
+            arguments.get("inicio", ""), arguments.get("fim", ""), arguments.get("conta", ""), arguments.get("agenda", "")
         )
 
     if name == "abrir_no_google" and str(arguments.get("item", "")).strip():
