@@ -28,7 +28,12 @@ VAD_THRESHOLD = 0.5
 # sem precisar de "Hey Jarvis" de novo. Assim dá para conversar.
 FOLLOW_UP_TIMEOUT = 6
 
-PHRASE_LIMIT = 15
+# Tempo máximo de uma fala, em segundos.
+PHRASE_LIMIT = 30
+
+# Silêncio (em segundos) que encerra a frase. O padrão do reconhecedor (0,8 s) cortava
+# quem faz uma pausa para pensar no meio do pedido.
+PAUSE_THRESHOLD = 1.6
 
 URL_PATTERN = re.compile(r"https?://\S+")
 
@@ -224,6 +229,7 @@ class Voice:
         self.cancel.clear()
         self.busy = True
         recognizer = sr.Recognizer()
+        recognizer.pause_threshold = PAUSE_THRESHOLD
 
         try:
             while not self.stop.is_set() and not self.cancel.is_set():
