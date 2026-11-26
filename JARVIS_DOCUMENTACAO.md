@@ -336,6 +336,7 @@ A resposta à Alexa deve ser natural, por exemplo, “Abrindo o Bloco de Notas, 
 
 ### Atualização de 22/10/2026: janela de chat no notebook
 
+- `JARVIS.exe` (criado por `build_exe.bat`, fora do Git) abre o app pelo `updater.py`: faz `git pull --ff-only`, instala os requirements se mudaram e abre `desktop.app`. O app mostra no chat o que foi atualizado, confere os logins 5 segundos depois de abrir (`desktop/connections.py`), procura versão nova a cada 30 minutos e tem "Atualizar e reiniciar" no ícone.
 - `desktop/app.py` é um app que fica em segundo plano, com um ícone perto do relógio do Windows. O atalho `Ctrl+Alt+J` mostra e esconde a janela, e o atalho pode ser trocado pela variável `JARVIS_HOTKEY`. `Esc` esconde a janela.
 - O app não passa pela Vercel nem pela fila. Ele usa o mesmo roteador e o mesmo DeepSeek (`desktop/core.py`) e executa as ações direto no notebook, com as funções do agente.
 - O DeepSeek recebe as últimas 6 mensagens da conversa como contexto. Os tokens são registrados com a origem `desktop`.

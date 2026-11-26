@@ -15,6 +15,7 @@ def isolated_memory(monkeypatch, tmp_path):
     monkeypatch.setenv("JARVIS_SKILLS", str(tmp_path / "skills"))
     monkeypatch.setenv("JARVIS_HISTORY", str(tmp_path / "historico.jsonl"))
     monkeypatch.setenv("JARVIS_NOTICES", str(tmp_path / "avisos_vistos.json"))
+    monkeypatch.setenv("JARVIS_UPDATE", str(tmp_path / "atualizacao.json"))
 
     # O .env do notebook é carregado ao importar o agente; sem isto, um teste poderia usar
     # as chaves reais (iCloud, DeepSeek, banco). Cada teste que precisa de uma define a sua.

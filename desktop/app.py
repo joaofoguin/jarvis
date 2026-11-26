@@ -16,6 +16,7 @@ import keyboard
 import pystray
 import webview
 
+import updater
 from agent import agent
 from desktop import connections, dashboard, notices, orb, settings
 from desktop.core import reply_to
@@ -34,6 +35,9 @@ NOTICES_INTERVAL = 300
 
 # Segundos depois de abrir até conferir os logins (Google e iCloud), para não atrasar a abertura.
 CONNECTIONS_DELAY = 5
+
+# De quanto em quanto tempo o app procura uma versão nova no GitHub, em segundos.
+UPDATES_INTERVAL = 1800
 
 # Pedidos de apagar o histórico, como na Alexa ("apague o que eu acabei de dizer").
 FORGET_HISTORY = {
@@ -96,6 +100,10 @@ def check_connections(jarvis, icon):
     if jarvis.stopping.wait(CONNECTIONS_DELAY):
         return
 
+    text = updater.report(updater.last_result())
+    if text:
+        jarvis.write("jarvis", text)
+
     try:
         working, problems = connections.check()
 
@@ -110,6 +118,24 @@ def check_connections(jarvis, icon):
 
     if problems:
         icon.notify("Algum login precisa ser refeito. Veja no chat.", "JARVIS")
+
+
+def watch_updates(jarvis, icon):
+    """Com o app aberto, avisa quando há versão nova no GitHub. Atualizar é pelo ícone, para não cortar uma conversa."""
+
+    warned = 0
+
+    while not jarvis.stopping.wait(UPDATES_INTERVAL):
+        try:
+            new = updater.behind()
+
+        except Exception as error:
+            print("ERRO AO PROCURAR ATUALIZAÇÃO:", repr(error))
+            continue
+
+        if new > warned:
+            warned = new
+            icon.notify("Há uma versão nova. Use \"Atualizar e reiniciar\" neste ícone.", "JARVIS")
 
 
 def run_agent(jarvis):
@@ -353,6 +379,10 @@ def main():
         chat.destroy()
         panel_window.destroy()
 
+    def update_and_restart():
+        updater.restart()
+        quit_app()
+
     icon = jarvis.icon = pystray.Icon(
         "jarvis",
         orb.icon(preferences["accent"], 64),
@@ -362,6 +392,7 @@ def main():
             pystray.MenuItem("Falar agora", lambda: jarvis.talk()),
             pystray.MenuItem("Mostrar ou esconder o orbe", lambda: jarvis.toggle_orb()),
             pystray.MenuItem("Preferências", lambda: jarvis.open_panel()),
+            pystray.MenuItem("Atualizar e reiniciar", update_and_restart),
             pystray.MenuItem("Sair", quit_app)
         )
     )
@@ -369,6 +400,7 @@ def main():
     threading.Thread(target=watch_notices, args=(jarvis, icon), daemon=True).start()
     threading.Thread(target=run_agent, args=(jarvis,), daemon=True).start()
     threading.Thread(target=check_connections, args=(jarvis, icon), daemon=True).start()
+    threading.Thread(target=watch_updates, args=(jarvis, icon), daemon=True).start()
 
     keyboard.add_hotkey(HOTKEY, jarvis.toggle_chat)
 

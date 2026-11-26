@@ -241,3 +241,15 @@ def test_connections_are_checked_after_opening_without_login(app, jarvis, monkey
 
     assert "Conex\\u00f5es com problema" in jarvis.chat.calls[-1]
     assert notified == ["JARVIS"]
+
+
+def test_update_result_is_shown_after_opening(app, jarvis, monkeypatch):
+    from desktop import connections
+
+    monkeypatch.setattr(app, "CONNECTIONS_DELAY", 0)
+    monkeypatch.setattr(app.updater, "last_result", lambda: {"changes": ["Apaga conversas"], "error": None})
+    monkeypatch.setattr(connections, "check", lambda: (0, []))
+
+    app.check_connections(jarvis, types.SimpleNamespace(notify=lambda text, title: None))
+
+    assert jarvis.chat.calls == ['addMessage("jarvis", "Atualizado pelo GitHub:\\n- Apaga conversas")']
