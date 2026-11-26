@@ -16,6 +16,7 @@ def test_only_saved_logins_are_checked_and_never_interactively(monkeypatch, tmp_
             raise google_data.LoginNeeded("venceu")
 
     monkeypatch.setattr(google_data, "get_credentials", get_credentials)
+    monkeypatch.setattr(google_data, "check_account", lambda account, creds, scopes: None)
 
     working, problems = connections.check()
 
@@ -41,3 +42,18 @@ def test_report():
     assert connections.report(0, []) is None
     assert connections.report(3, []) == "Conexões conferidas: 3 funcionando."
     assert connections.report(1, ["x"]).endswith("- x")
+
+
+def test_login_saved_with_the_wrong_account_is_removed(monkeypatch, tmp_path):
+    monkeypatch.setenv("GOOGLE_ACCOUNTS", "joao@discente.uenp.edu.br")
+    token = tmp_path / "token_.json"
+    token.write_text("{}")
+    monkeypatch.setattr(google_data, "token_file", lambda account, kind="": str(tmp_path / f"token_{kind}.json"))
+    monkeypatch.setattr(google_data, "get_credentials", lambda *args, **kwargs: "creds")
+    monkeypatch.setattr(google_data, "signed_in_email", lambda creds, scopes: "pessoal@gmail.com")
+
+    working, problems = connections.check()
+
+    assert working == 0
+    assert "feito com pessoal@gmail.com" in problems[0] and "escolha joao@discente.uenp.edu.br" in problems[0]
+    assert not token.exists()

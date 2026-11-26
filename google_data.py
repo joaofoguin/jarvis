@@ -66,6 +66,36 @@ class LoginNeeded(RuntimeError):
     pass
 
 
+class WrongAccount(RuntimeError):
+    pass
+
+
+def signed_in_email(creds, scopes):
+    """O e-mail da conta que de fato fez o login, ou None se as permissões não permitem saber."""
+
+    from googleapiclient.discovery import build
+
+    # A agenda principal tem o e-mail da conta como id; o Drive informa o dono.
+    if "https://www.googleapis.com/auth/calendar.readonly" in scopes:
+        calendar = build("calendar", "v3", credentials=creds, cache_discovery=False)
+        return calendar.calendars().get(calendarId="primary").execute()["id"]
+
+    if "https://www.googleapis.com/auth/drive" in scopes:
+        drive = build("drive", "v3", credentials=creds, cache_discovery=False)
+        return drive.about().get(fields="user(emailAddress)").execute()["user"]["emailAddress"]
+
+    return None
+
+
+def check_account(account, creds, scopes):
+    """No navegador dá para entrar com outra conta do Google; aí o JARVIS leria a conta errada."""
+
+    email = account and signed_in_email(creds, scopes)
+
+    if email and email.lower() != account.lower():
+        raise WrongAccount(f"o login de {account} foi feito com {email}")
+
+
 def get_credentials(account, scopes=SCOPES, kind="", interactive=True):
     """Credenciais da conta. Com interactive=False (telas automáticas), nunca abre o navegador:
     se o login precisar ser refeito, levanta LoginNeeded."""
@@ -107,6 +137,12 @@ def get_credentials(account, scopes=SCOPES, kind="", interactive=True):
             success_message="Login concluído. Pode fechar esta janela e voltar ao JARVIS.",
             **({"login_hint": account} if account else {})
         )
+
+        try:
+            check_account(account, creds, scopes)
+
+        except WrongAccount as error:
+            raise WrongAccount(f"{error}. Peça de novo e, no navegador, escolha {account}.") from None
 
     with open(path, "w") as file:
         file.write(creds.to_json())

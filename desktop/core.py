@@ -8,6 +8,7 @@ import reports
 import whatsapp_app
 
 from agent.agent import call_claude_code, run_action
+from desktop import settings
 from llm import BROWSER_TOOLS, FILE_TOOLS, GOOGLE_TOOLS, ICLOUD_TOOLS, MEMORY_TOOLS, TOOLS, LLMError, ask_llm
 from router import (
     CLAUDE_CODE_PREFIX, DRIVE_PREFIX, DRIVE_READS, FORGET_PREFIX, GOOGLE_AGENDA_PREFIX, GOOGLE_CLASSROOM, GOOGLE_YOUTUBE,
@@ -203,7 +204,7 @@ def run_command(command, answer, text):
         return answer, lambda: run_icloud(icloud_data.contact_summary, name)
 
     if command == GOOGLE_CLASSROOM:
-        return answer, lambda: run_google(google_data.classroom_summary, None, text)
+        return answer, lambda: run_google(classroom, text)
 
     if command.startswith(WHATSAPP_PREFIX):
         contact, message = whatsapp_args(command)
@@ -275,6 +276,14 @@ def run_task(task):
         return f"Claude Code terminou: {result}"
 
     return f"O Claude Code falhou: {result}"
+
+
+def classroom(text):
+    """Sem citar uma conta no pedido, valem as contas do Classroom escolhidas nas preferências, como no painel."""
+
+    mentioned = google_data.accounts(text) != google_data.accounts()
+    only = None if mentioned else settings.load()["classroom_accounts"] or None
+    return google_data.classroom_summary(google_data.services("classroom", "v1", text, only=only), text)
 
 
 def run_google(function, *args):

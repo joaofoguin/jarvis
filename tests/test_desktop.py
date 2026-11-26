@@ -402,3 +402,18 @@ def test_failed_claude_code_is_not_retried_with_another_task(actions, monkeypatc
 
     assert task() == "O Claude Code falhou: sem login"
     assert runs == ["crie uma calculadora"]
+
+
+def test_classroom_in_chat_follows_the_accounts_chosen_in_preferences(actions, monkeypatch):
+    from desktop import settings
+
+    monkeypatch.setenv("GOOGLE_ACCOUNTS", "pessoal@gmail.com,joao@discente.uenp.edu.br")
+    settings.save({"classroom_accounts": ["joao@discente.uenp.edu.br"]})
+    used = []
+    monkeypatch.setattr(core.google_data, "services", lambda name, version, request, only=None: used.append(only) or [])
+    monkeypatch.setattr(core.google_data, "classroom_summary", lambda services, request: "ok")
+
+    core.classroom("minhas tarefas do classroom")
+    core.classroom("tarefas do classroom da conta pessoal")
+
+    assert used == [["joao@discente.uenp.edu.br"], None]

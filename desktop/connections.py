@@ -31,8 +31,14 @@ def check():
             label = f"{name} de {account or 'sua conta'}"
 
             try:
-                google_data.get_credentials(account, scopes, kind, interactive=False)
+                creds = google_data.get_credentials(account, scopes, kind, interactive=False)
+                google_data.check_account(account, creds, scopes)
                 working += 1
+
+            except google_data.WrongAccount as error:
+                # O login salvo é de outra conta: apagá-lo faz o próximo pedido abrir o login certo.
+                os.remove(google_data.token_file(account, kind))
+                problems.append(f"{label}: {error}; apaguei esse login, {how} e escolha {account}.")
 
             except google_data.LoginNeeded:
                 problems.append(f"{label}: o login venceu; {how}.")
