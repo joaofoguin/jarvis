@@ -185,6 +185,15 @@ class Voice:
         # Um clique durante a conversa liga cancel: para de ouvir ou de falar e encerra a conversa.
         self.cancel = threading.Event()
         self.busy = False
+        # Com o orbe fechado, o microfone fica desligado: nem "Hey Jarvis", nem conversa.
+        self.paused = False
+
+    def pause(self, paused):
+        self.paused = paused
+
+        if paused:
+            self.trigger.clear()
+            self.cancel.set()
 
     def toggle(self):
         """O clique no orbe: começa a ouvir ou, se já está numa conversa, cancela."""
@@ -196,7 +205,10 @@ class Voice:
 
     def run(self):
         while not self.stop.is_set():
-            if self.wake_word:
+            if self.paused:
+                self.stop.wait(0.5)
+
+            elif self.wake_word:
                 with microphone(self.cancel) as source:
                     if self.wait_for_wake(source):
                         self.converse(source)
@@ -211,7 +223,7 @@ class Voice:
         self.model = self.model or wake_model()
         self.model.reset()
 
-        while self.wake_word and not self.stop.is_set():
+        while self.wake_word and not self.paused and not self.stop.is_set():
             if self.trigger.is_set():
                 return True
 

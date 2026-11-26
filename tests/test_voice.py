@@ -277,3 +277,26 @@ def test_a_short_pause_does_not_end_the_request(fake_sr, monkeypatch):
 
     assert used == [voice.PAUSE_THRESHOLD]
     assert voice.PAUSE_THRESHOLD > 1
+
+
+def test_closed_orb_stops_listening(fake_sr, monkeypatch):
+    jarvis, heard, states = make_voice()
+    jarvis.model = FakeModel([0.0] * 10)
+
+    def listen(recognizer, source):
+        # O orbe é fechado no meio da conversa.
+        jarvis.pause(True)
+        return "conversa em volta"
+
+    monkeypatch.setattr(jarvis, "listen", listen)
+    monkeypatch.setattr(voice, "read_frame", lambda source: b"")
+    jarvis.trigger.set()
+
+    jarvis.converse(source=None)
+
+    assert heard == [] and not jarvis.trigger.is_set()
+    jarvis.wake_word = True
+    assert jarvis.wait_for_wake(source=None) is False
+
+    jarvis.pause(False)
+    assert not jarvis.paused
