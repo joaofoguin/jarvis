@@ -249,7 +249,7 @@ def run_command(command, answer, text):
             return f"Desculpe, senhor. Não consegui: {error}", None
 
         pending_action = "Apagando, senhor.", lambda: run_local(local_files.delete, path), command
-        return f"Apagar {local_files.relative(path)} da pasta de trabalho? Ele vai para a Lixeira. Responda \"sim\" para confirmar.", None
+        return f"Apagar {local_files.relative(path)}? Ele vai para a Lixeira. Responda \"sim\" para confirmar.", None
 
     if command == INSTAGRAM_MESSAGES:
         return answer, lambda: run_browser(browser.instagram_unread)

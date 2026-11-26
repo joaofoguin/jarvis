@@ -65,8 +65,8 @@ def tool(name, description, properties=None, required=None):
 TOOLS = [tool(item["tool"], item["description"]) for item in COMMANDS] + [
     tool(
         "claude_code",
-        "Pede ao Claude Code, no computador do usuário, para criar ou alterar código "
-        "na pasta de trabalho do JARVIS.",
+        "Pede ao Claude Code, no computador do usuário, para criar ou alterar código ou arquivos de texto "
+        "na pasta de trabalho do JARVIS ou nas pastas do usuário (Downloads, Documentos, Área de Trabalho).",
         {"task": {"type": "string", "description": "A tarefa de programação, completa e em português."}},
         ["task"]
     )
@@ -125,17 +125,18 @@ GOOGLE_TOOLS = [
 
 
 # Também só no notebook: usam o navegador do JARVIS, com o login do usuário.
-# Arquivos da pasta de trabalho do notebook (JARVIS_WORKSPACE), a mesma do Claude Code.
+# Arquivos das pastas do usuário no notebook (Downloads, Documentos, Área de Trabalho...).
 FILE_TOOLS = [
     tool(
         "abrir_arquivo",
-        "Abre um arquivo da pasta de trabalho no programa padrão do computador (uma página HTML abre no navegador).",
+        "Abre um arquivo do computador do usuário (Downloads, Documentos, Área de Trabalho...) no programa padrão; "
+        "uma página HTML abre no navegador.",
         {"arquivo": {"type": "string", "description": "Nome do arquivo ou parte dele, como index.html."}},
         ["arquivo"]
     ),
     tool(
         "apagar_arquivo",
-        "Apaga um arquivo da pasta de trabalho, mandando para a Lixeira. O usuário confirma antes.",
+        "Apaga um arquivo do computador do usuário, mandando para a Lixeira. O usuário confirma antes.",
         {"arquivo": {"type": "string", "description": "Nome do arquivo ou parte dele."}},
         ["arquivo"]
     )

@@ -7,6 +7,8 @@ import requests
 
 from dotenv import load_dotenv
 
+import local_files
+
 
 load_dotenv()
 
@@ -120,6 +122,8 @@ def call_claude_code(task):
                 CLAUDE_CODE_TOOLS,
                 "--disallowedTools",
                 "Bash",
+                # Também pode editar arquivos nas pastas do usuário, as mesmas que o JARVIS abre e apaga.
+                *[arg for folder in local_files.roots() for arg in ("--add-dir", str(folder))],
                 "--output-format",
                 "text"
             ],

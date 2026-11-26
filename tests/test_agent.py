@@ -64,6 +64,8 @@ def test_claude_code_runs_inside_workspace_without_bash(claude, tmp_path):
     # No Windows o claude pode ser um .cmd, que corta argumentos com quebra de linha.
     assert kwargs["input"].startswith("criar hello.py\n")
     assert not any("\n" in arg for arg in args)
+    # Pode editar nas pastas do usuário, mas nunca roda comandos.
+    assert args[args.index("--disallowedTools") + 1] == "Bash"
 
 
 def test_claude_code_needs_workspace(claude, monkeypatch):
