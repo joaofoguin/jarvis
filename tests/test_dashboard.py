@@ -109,3 +109,41 @@ def test_dashboard_agenda_never_opens_the_login_even_when_it_expired(monkeypatch
 
     assert dashboard.agenda() == "Agenda"
     assert asked == {"interactive": False}
+
+
+def test_forget_last_removes_only_the_latest_request():
+    dashboard.log(datetime(2026, 10, 22, 9, 0), "minha agenda", "ok")
+    dashboard.log(datetime(2026, 10, 22, 9, 0), "conversa captada sem querer", "ok")
+
+    assert dashboard.forget_last() == 1
+    assert [entry["text"] for entry in dashboard.history()[0]["entries"]] == ["minha agenda"]
+
+
+def test_forget_conversation_keeps_older_conversations():
+    dashboard.log(datetime(2026, 10, 22, 9, 0), "minha agenda", "ok")
+    dashboard.log(datetime(2026, 10, 22, 14, 0), "frase 1", "ok")
+    dashboard.log(datetime(2026, 10, 22, 14, 10), "frase 2", "ok")
+
+    assert dashboard.forget_conversation() == 2
+    assert [conversation["title"] for conversation in dashboard.history()] == ["minha agenda"]
+
+
+def test_forget_today_and_between(monkeypatch):
+    now = datetime.now().replace(second=0, microsecond=0)
+    dashboard.log(datetime(2026, 10, 22, 9, 0), "antigo", "ok")
+    dashboard.log(datetime(2026, 10, 22, 14, 0), "outro antigo", "ok")
+    dashboard.log(now, "hoje", "ok")
+
+    assert dashboard.forget_today() == 1
+    assert dashboard.forget_between("2026-10-22T09:00", "2026-10-22T09:00") == 1
+    assert [conversation["title"] for conversation in dashboard.history()] == ["outro antigo"]
+
+
+def test_forget_keeps_broken_lines_and_handles_missing_file():
+    assert dashboard.forget_last() == 0
+
+    dashboard.history_path().write_text("quebrada\n", encoding="utf-8")
+    dashboard.log(datetime(2026, 10, 22, 9, 0), "minha agenda", "ok")
+
+    assert dashboard.forget_last() == 1
+    assert dashboard.history_path().read_text(encoding="utf-8") == "quebrada\n"

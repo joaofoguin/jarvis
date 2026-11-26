@@ -94,6 +94,18 @@ FORGET_PREFIX = "memoria_esquecer:"
 MEMORY_MAX_TEXT = 300
 
 # Perguntas sobre o programa não são ordens para abri-lo.
+HISTORY_LAST = "historico_apagar:ultimo"
+HISTORY_CONVERSATION = "historico_apagar:conversa"
+HISTORY_TODAY = "historico_apagar:hoje"
+
+# "Esquecer" fica com a memória; aqui só apagar, excluir, deletar e limpar.
+HISTORY_VERB = r"\b(apag|exclu|delet|limp)\w*\b"
+HISTORY_TODAY_PATTERN = re.compile(HISTORY_VERB + r".*\b(disse|falei|pedi|conversas?|historico)\b.*\bhoje\b")
+HISTORY_CONVERSATION_PATTERN = re.compile(HISTORY_VERB + r".*\b(ultima|essa|esta) conversa\b")
+HISTORY_LAST_PATTERN = re.compile(
+    HISTORY_VERB + r".*\b(acabei de (dizer|falar|pedir)|o que eu (disse|falei)|ultim[ao] (coisa|pedido|frase))\b"
+)
+
 QUESTION_PREFIXES = ("como ", "o que ", "por que ", "porque ", "qual ", "quando ")
 
 
@@ -205,6 +217,22 @@ def drive_args(command):
     """Retorna (ação, arquivo, texto, novo texto) de um comando google_drive."""
 
     return tuple(json.loads(command[len(DRIVE_PREFIX):]))
+
+
+def detect_history(question):
+    """Pedidos para apagar o histórico de conversas do notebook. Retorna o comando ou None."""
+
+    text = normalize(question)
+
+    for pattern, command in [
+        (HISTORY_TODAY_PATTERN, HISTORY_TODAY),
+        (HISTORY_CONVERSATION_PATTERN, HISTORY_CONVERSATION),
+        (HISTORY_LAST_PATTERN, HISTORY_LAST)
+    ]:
+        if pattern.search(text):
+            return command
+
+    return None
 
 
 def detect_drive(question):

@@ -75,6 +75,67 @@ def history():
     return conversations[::-1][:CONVERSATIONS_SHOWN]
 
 
+def forget(select):
+    """Apaga do histórico as linhas que select escolher; select recebe [(linha, horário)].
+
+    Retorna quantos pedidos foram apagados. Linhas quebradas ficam como estão.
+    """
+
+    path = history_path()
+
+    if not path.exists():
+        return 0
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    entries = []
+
+    for index, line in enumerate(lines):
+        try:
+            entries.append((index, datetime.fromisoformat(json.loads(line)["when"])))
+        except (ValueError, KeyError, TypeError):
+            continue
+
+    removed = set(select(entries))
+
+    if removed:
+        path.write_text("".join(line + "\n" for index, line in enumerate(lines) if index not in removed), encoding="utf-8")
+
+    return len(removed)
+
+
+def forget_between(start, end):
+    # O botão do feed: start e end são os horários da conversa, como history() devolve.
+    start, end = datetime.fromisoformat(start), datetime.fromisoformat(end)
+    return forget(lambda entries: [index for index, when in entries if start <= when <= end])
+
+
+def forget_last():
+    return forget(lambda entries: [index for index, _ in entries[-1:]])
+
+
+def forget_conversation():
+    """Apaga a última conversa: os pedidos do fim sem intervalo maior que CONVERSATION_GAP."""
+
+    def select(entries):
+        chosen = []
+
+        for index, when in reversed(entries):
+            if chosen and last - when > CONVERSATION_GAP:
+                break
+
+            chosen.append(index)
+            last = when
+
+        return chosen
+
+    return forget(select)
+
+
+def forget_today():
+    today = date.today()
+    return forget(lambda entries: [index for index, when in entries if when.date() == today])
+
+
 def google_ready(accounts=None):
     # Só consulta o Google se o login já foi feito; o painel nunca abre o navegador sozinho.
     return all(os.path.exists(google_data.token_file(account)) for account in accounts or google_data.accounts())

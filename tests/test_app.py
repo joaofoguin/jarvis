@@ -212,3 +212,32 @@ def test_app_skips_the_agent_when_another_is_running(app, jarvis, monkeypatch):
     monkeypatch.setattr(app.agent, "serve", lambda *args: pytest.fail("não deveria rodar"))
 
     app.run_agent(jarvis)
+
+
+def test_spoken_request_deletes_history_without_reaching_the_ai(app, jarvis, monkeypatch):
+    from desktop import dashboard
+
+    monkeypatch.setattr(app, "reply_to", lambda text, history, record: ("Às ordens.", None))
+    jarvis.send("conversa captada sem querer")
+    monkeypatch.setattr(app, "reply_to", lambda *args: pytest.fail("não deveria ir para a IA"))
+    spoken = []
+
+    jarvis.answer("apague o que eu acabei de dizer", say=spoken.append)
+
+    assert dashboard.history() == []
+    assert jarvis.history == []
+    assert spoken == ["Pronto, senhor. Apaguei 1 pedido(s) do histórico."]
+
+
+def test_connections_are_checked_after_opening_without_login(app, jarvis, monkeypatch):
+    from desktop import connections
+
+    monkeypatch.setattr(app, "CONNECTIONS_DELAY", 0)
+    monkeypatch.setattr(connections, "check", lambda: (1, ["Drive de a@b.com: o login venceu; peça uma busca no Drive pelo chat."]))
+    notified = []
+    icon = types.SimpleNamespace(notify=lambda text, title: notified.append(title))
+
+    app.check_connections(jarvis, icon)
+
+    assert "Conex\\u00f5es com problema" in jarvis.chat.calls[-1]
+    assert notified == ["JARVIS"]
