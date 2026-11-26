@@ -152,13 +152,18 @@ def follow_steps(text, history, record, steps, answer, command, background=False
                 shown.append(answer)
             break
 
-        # Repetir a mesma ação no mesmo pedido seria um ciclo sem fim.
-        if next_command in {done for done, _ in steps}:
+        # Repetir a mesma ação no mesmo pedido seria um ciclo sem fim. O Claude Code conta como a
+        # mesma ação mesmo com outro texto: se falhou, tentar de novo sozinho só repete o erro.
+        if action_kind(next_command) in {action_kind(done) for done, _ in steps}:
             break
 
         command = next_command
 
     return ("\n\n" if background else " ").join(filter(None, shown)), None
+
+
+def action_kind(command):
+    return CLAUDE_CODE_PREFIX if command.startswith(CLAUDE_CODE_PREFIX) else command
 
 
 def results_so_far(steps):

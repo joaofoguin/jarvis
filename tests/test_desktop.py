@@ -387,3 +387,18 @@ def test_confirmed_message_is_recorded_when_sent(actions, sent, monkeypatch):
     core.reply_to("sim", [], recorded.append)[1]()
 
     assert recorded == [core.executed('whatsapp_enviar:["Amor", "oi"]')]
+
+
+def test_failed_claude_code_is_not_retried_with_another_task(actions, monkeypatch):
+    runs = []
+    monkeypatch.setattr(core, "call_claude_code", lambda task: runs.append(task) or ("failed", "sem login"))
+    llm_replies(
+        monkeypatch,
+        ("Pedi ao Claude Code.", "claude_code:crie uma calculadora"),
+        ("Vou tentar de novo.", "claude_code:crie uma calculadora simples em Python")
+    )
+
+    answer, task = core.reply_to("crie uma calculadora", [])
+
+    assert task() == "O Claude Code falhou: sem login"
+    assert runs == ["crie uma calculadora"]
