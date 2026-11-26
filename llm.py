@@ -38,7 +38,8 @@ MENSAGENS: para enviar ou mudar uma mensagem de WhatsApp, use sempre enviar_what
 já escrito. O sistema pede a confirmação ao usuário; não peça confirmação em texto.
 
 ARQUIVOS: para mudar um arquivo do Google Drive, use editar_arquivo_drive com o texto final. O sistema também
-pede a confirmação.
+pede a confirmação. Para abrir ou apagar um arquivo do computador (por exemplo, um que o Claude Code acabou de
+criar), use abrir_arquivo ou apagar_arquivo; apagar também pede a confirmação.
 
 MEMÓRIA: use lembrar só para algo novo ou corrigido. Se a informação já está na sua memória, não guarde de novo.
 
@@ -124,6 +125,23 @@ GOOGLE_TOOLS = [
 
 
 # Também só no notebook: usam o navegador do JARVIS, com o login do usuário.
+# Arquivos da pasta de trabalho do notebook (JARVIS_WORKSPACE), a mesma do Claude Code.
+FILE_TOOLS = [
+    tool(
+        "abrir_arquivo",
+        "Abre um arquivo da pasta de trabalho no programa padrão do computador (uma página HTML abre no navegador).",
+        {"arquivo": {"type": "string", "description": "Nome do arquivo ou parte dele, como index.html."}},
+        ["arquivo"]
+    ),
+    tool(
+        "apagar_arquivo",
+        "Apaga um arquivo da pasta de trabalho, mandando para a Lixeira. O usuário confirma antes.",
+        {"arquivo": {"type": "string", "description": "Nome do arquivo ou parte dele."}},
+        ["arquivo"]
+    )
+]
+
+
 BROWSER_TOOLS = [
     tool(
         "enviar_whatsapp",

@@ -89,6 +89,10 @@ CONTACT_PATTERN = re.compile(
 )
 
 # Memória do JARVIS: a IA guarda e apaga itens (assunto, chave, valor), só no notebook.
+LOCAL_FILE_PREFIX = "arquivo_local:"
+LOCAL_FILE_ACTIONS = {"abrir", "apagar"}
+LOCAL_FILE_MAX_NAME = 200
+
 MEMORY_PREFIX = "memoria_lembrar:"
 FORGET_PREFIX = "memoria_esquecer:"
 MEMORY_MAX_TEXT = 300
@@ -213,6 +217,23 @@ def drive_command(action, name, text="", new_text=""):
     return DRIVE_PREFIX + json.dumps([action, name, text, new_text], ensure_ascii=False), GOOGLE_ANSWER
 
 
+def local_file_command(action, name):
+    """Abrir ou apagar um arquivo da pasta de trabalho, ou None se não servir."""
+
+    name = " ".join(str(name).split())
+
+    if action not in LOCAL_FILE_ACTIONS or not 0 < len(name) <= LOCAL_FILE_MAX_NAME:
+        return None
+
+    return LOCAL_FILE_PREFIX + json.dumps([action, name], ensure_ascii=False), "Certo, senhor."
+
+
+def local_file_args(command):
+    """Retorna (ação, arquivo) de um comando arquivo_local."""
+
+    return tuple(json.loads(command[len(LOCAL_FILE_PREFIX):]))
+
+
 def drive_args(command):
     """Retorna (ação, arquivo, texto, novo texto) de um comando google_drive."""
 
@@ -307,6 +328,9 @@ def command_for_tool(name, arguments):
         return drive_command(
             arguments.get("acao", ""), arguments.get("arquivo", ""), arguments.get("texto", ""), arguments.get("novo_texto", "")
         )
+
+    if name in ("abrir_arquivo", "apagar_arquivo"):
+        return local_file_command(name.split("_")[0], arguments.get("arquivo", ""))
 
     if name == "buscar_contato":
         return contact_command(arguments.get("nome", ""))
