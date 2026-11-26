@@ -252,6 +252,9 @@ class Jarvis:
         else:
             self.orb.show()
 
+        # Orbe fechado = JARVIS não ouve.
+        self.voice.pause(not self.orb.visible)
+
     def start(self):
         # Roda numa thread própria assim que as janelas abrem.
         call_js(self.chat, "setAccent", self.accent)
@@ -269,8 +272,9 @@ class Jarvis:
 
     def hide_orb(self):
         self.orb.hide()
+        self.voice.pause(True)
         if self.icon:
-            self.icon.notify("O orbe foi fechado. Para trazê-lo de volta, use \"Mostrar ou esconder o orbe\" neste ícone.", "JARVIS")
+            self.icon.notify("O orbe foi fechado e o JARVIS parou de ouvir. Para trazê-lo de volta, use \"Mostrar ou esconder o orbe\" neste ícone.", "JARVIS")
 
     def answer_aloud(self, text):
         # Roda na thread da voz, que só volta a ouvir depois de responder.
