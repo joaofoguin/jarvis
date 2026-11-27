@@ -95,11 +95,18 @@ def reply_to(text, history, record=None):
 
 WEEKDAYS = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
 
+# Comandos de barra do chat (rodam em app.py). A IA também os conhece, para saber explicar quando perguntarem.
+SLASH_HELP = """Comandos do chat:
+/limpar - limpa a tela e começa uma conversa nova com a IA
+/apagar ultimo | conversa | hoje - apaga pedidos do histórico
+/preferencias - abre o painel de preferências
+/ajuda - mostra esta lista"""
+
 
 def now_context():
     # Sem a data, a IA não sabe o que é "amanhã às 14h" ao mexer na agenda.
     now = datetime.now()
-    text = f"Agora: {WEEKDAYS[now.weekday()]}, {now:%Y-%m-%d %H:%M} (horário local)."
+    text = f"Agora: {WEEKDAYS[now.weekday()]}, {now:%Y-%m-%d %H:%M} (horário local). {SLASH_HELP}"
     # O que o usuário escolheu nas preferências vale mais que o que a IA lembra de conversas antigas.
     chosen = settings.load()["classroom_accounts"]
 

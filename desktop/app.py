@@ -20,7 +20,7 @@ import google_data
 import updater
 from agent import agent
 from desktop import connections, dashboard, notices, orb, settings
-from desktop.core import reply_to
+from desktop.core import SLASH_HELP, reply_to
 from desktop.orb import Orb
 from desktop.panel import Panel
 from desktop.voice import Voice
@@ -51,11 +51,6 @@ FORGET_HISTORY = {
 ICON_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (256, 256)]
 
 # Comandos de barra do chat: rodam na hora, sem IA e sem entrar no histórico.
-SLASH_HELP = """Comandos do chat:
-/limpar - limpa a tela e começa uma conversa nova com a IA
-/apagar ultimo | conversa | hoje - apaga pedidos do histórico
-/preferencias - abre o painel de preferências
-/ajuda - mostra esta lista"""
 SLASH_FORGET = {"ultimo": HISTORY_LAST, "conversa": HISTORY_CONVERSATION, "hoje": HISTORY_TODAY}
 
 
