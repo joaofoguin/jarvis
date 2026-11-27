@@ -65,9 +65,22 @@ def test_detects_google_requests(question, command):
     assert detect_google(question)[0] == command
 
 
-@pytest.mark.parametrize("question", ["crie tarefas no código", "abra o bloco de notas"])
+@pytest.mark.parametrize("question", [
+    "crie tarefas no código", "abra o bloco de notas",
+    "Adicione a minha agenda que terá viagem para Vitória no dia 30",
+    "marque na agenda dentista amanhã às 14h",
+    "agende uma reunião para sexta",
+    "apague o evento de amanhã da agenda",
+    "mude o compromisso de hoje para as 16h",
+    "coloca na agenda prova dia 3",
+])
 def test_ignores_non_google_requests(question):
     assert detect_google(question) is None
+
+
+@pytest.mark.parametrize("question", ["o que tenho marcado amanhã", "minha agenda de hoje", "quais eventos tenho na semana"])
+def test_agenda_lookups_stay_fixed(question):
+    assert detect_google(question)[0].startswith("google_agenda:")
 
 
 def test_agenda_tool_clamps_days():

@@ -12,8 +12,9 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 # A Alexa desiste da resposta após cerca de 8 segundos.
 TIMEOUT_SECONDS = 7
 
-# Respostas faladas devem ser curtas; o limite também controla o custo.
-MAX_TOKENS = 300
+# O tamanho da resposta é decidido pela IA (ver VOZ no prompt). Isto é só uma rede de segurança para
+# não cortar uma frase no meio; só os tokens gerados são cobrados, então um teto maior não custa mais.
+MAX_TOKENS = 800
 
 # Prompt fixo: o DeepSeek reaproveita prefixos repetidos (cache), que custam menos.
 SYSTEM_PROMPT = """Você é JARVIS, um assistente pessoal inteligente.
@@ -24,7 +25,8 @@ Pode chamar o usuário de "senhor" quando apropriado.
 IDIOMA: responda sempre em português do Brasil.
 
 VOZ: sua resposta pode ser falada (Alexa ou voz do notebook). Não use Markdown, emojis nem listas longas.
-Seja natural e conciso.
+Seja natural e conciso: responda primeiro o que foi perguntado, em até 3 frases curtas, sem repetir a pergunta
+nem fazer introduções. Se o assunto pedir mais, dê o essencial e ofereça detalhar.
 
 AÇÕES: entenda a intenção e, se uma ferramenta atende o pedido, use-a em vez de explicar como fazer.
 Use claude_code só para pedidos de programação, como criar ou alterar código.

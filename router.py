@@ -47,6 +47,14 @@ GOOGLE_ANSWER = "Um momento, senhor. Estou consultando."
 AGENDA_PATTERN = re.compile(
     r"\b(agenda|compromissos?|eventos?|o que (eu )?tenho)\b"
 )
+# Pedidos que mudam a agenda ("adicione", "marque", "apague"...) vão para a IA, que tem criar/mudar/apagar_evento.
+# A regra fixa da agenda só responde consultas.
+AGENDA_CHANGE_PATTERN = re.compile(
+    r"\b(adicion|acrescent|anot|registr|cri|mud|alter|cancel|apag|remov)(a|e|ar)\b"
+    r"|\b(agend|marc|remarc|desmarc|coloc)(e|ar)\b|\b(marc|remarc|desmarc|coloc)a\b"
+    r"|\b(apagu|marqu|remarqu|desmarqu|coloqu)e\b|\b(inclu|exclu)(a|i|ir)\b|\b(mov|tir)(a|e|er|ar)\b"
+    r"|\b(bot(a|e|ar)|poe|ponha)\b"
+)
 YOUTUBE_PATTERN = re.compile(
     r"\b(youtube|insights?|(metricas|estatisticas|desempenho) do (meu )?(video|canal))\b"
 )
@@ -165,7 +173,7 @@ def detect_google(question):
     if CLASSROOM_PATTERN.search(text):
         return GOOGLE_CLASSROOM, GOOGLE_ANSWER
 
-    if AGENDA_PATTERN.search(text):
+    if AGENDA_PATTERN.search(text) and not AGENDA_CHANGE_PATTERN.search(text):
         if "semana" in text:
             return agenda_command(7)
 

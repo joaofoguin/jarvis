@@ -253,3 +253,24 @@ def test_update_result_is_shown_after_opening(app, jarvis, monkeypatch):
     app.check_connections(jarvis, types.SimpleNamespace(notify=lambda text, title: None))
 
     assert jarvis.chat.calls == ['addMessage("jarvis", "Atualizado pelo GitHub:\\n- Apaga conversas")']
+
+
+def test_slash_commands_run_without_the_ai(app, jarvis, monkeypatch):
+    from desktop import dashboard
+
+    monkeypatch.setattr(app, "reply_to", lambda text, history, record: ("Às ordens.", None))
+    jarvis.send("oi")
+    monkeypatch.setattr(app, "reply_to", lambda *args: pytest.fail("não deveria ir para a IA"))
+    jarvis.chat.calls.clear()
+
+    jarvis.send("/limpar")
+
+    assert jarvis.chat.calls == ['addMessage("user", "/limpar")', "clearMessages()"]
+    assert jarvis.history == []
+    assert len(dashboard.history()) == 1
+
+    jarvis.send("/apagar último")
+    assert dashboard.history() == []
+
+    jarvis.send("/qualquer")
+    assert "/limpar" in jarvis.chat.calls[-1]
