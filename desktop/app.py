@@ -24,7 +24,7 @@ from desktop.core import reply_to
 from desktop.orb import Orb
 from desktop.panel import Panel
 from desktop.voice import Voice
-from router import HISTORY_CONVERSATION, HISTORY_LAST, HISTORY_TODAY, detect_history
+from router import HISTORY_CONVERSATION, HISTORY_LAST, HISTORY_TODAY, detect_history, normalize
 
 
 HOTKEY = os.getenv("JARVIS_HOTKEY", "ctrl+alt+j")
@@ -49,6 +49,14 @@ FORGET_HISTORY = {
 
 
 ICON_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (256, 256)]
+
+# Comandos de barra do chat: rodam na hora, sem IA e sem entrar no histórico.
+SLASH_HELP = """Comandos do chat:
+/limpar - limpa a tela e começa uma conversa nova com a IA
+/apagar ultimo | conversa | hoje - apaga pedidos do histórico
+/preferencias - abre o painel de preferências
+/ajuda - mostra esta lista"""
+SLASH_FORGET = {"ultimo": HISTORY_LAST, "conversa": HISTORY_CONVERSATION, "hoje": HISTORY_TODAY}
 
 
 def icon_path():
@@ -299,7 +307,36 @@ class Jarvis:
 
         return removed
 
+    def slash(self, text):
+        """Roda um comando de barra e devolve a resposta (vazia quando não há o que dizer)."""
+
+        name, _, argument = normalize(text[1:]).strip().partition(" ")
+        argument = argument.strip()
+
+        if name == "limpar":
+            with self.turn:
+                self.history = []
+            call_js(self.chat, "clearMessages")
+            return ""
+
+        if name == "apagar" and argument in SLASH_FORGET:
+            removed = self.forget_history(FORGET_HISTORY[SLASH_FORGET[argument]])
+            return f"Pronto, senhor. Apaguei {removed} pedido(s) do histórico." if removed else "Não havia nada para apagar, senhor."
+
+        if name == "preferencias":
+            self.open_panel()
+            return "Abri as preferências, senhor."
+
+        return SLASH_HELP if name == "ajuda" else f"Não conheço esse comando, senhor.\n\n{SLASH_HELP}"
+
     def reply(self, text, say):
+        if text.startswith("/"):
+            answer = self.slash(text)
+
+            if answer:
+                self.write("jarvis", answer)
+            return
+
         command = detect_history(text)
 
         if command:

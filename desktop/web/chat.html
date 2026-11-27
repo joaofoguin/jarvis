@@ -341,6 +341,12 @@
     if (author === "jarvis" && wide.matches) loadSection("history");
   }
 
+  function clearMessages() {
+    log.replaceChildren();
+    $("count").textContent = "0 mensagens";
+    markOverflow();
+  }
+
   function setState(state) {
     const label = STATES[state] || STATES.idle;
     $("reactor").dataset.state = state;

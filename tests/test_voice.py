@@ -242,18 +242,18 @@ def test_cancelled_reply_is_not_spoken(monkeypatch):
     jarvis.say("Resposta")
 
 
-def test_long_answers_are_spoken_in_parts_and_cut(monkeypatch):
+def test_long_answers_are_spoken_in_full_and_in_parts(monkeypatch):
     jarvis, _, _ = make_voice()
     synthesized, played = [], []
     monkeypatch.setattr(voice, "synthesize", lambda text, name, rate, part: synthesized.append(text) or f"{part}.mp3")
     monkeypatch.setattr(voice, "play", lambda path, cancel: played.append(path))
 
-    jarvis.say("Hoje você tem três eventos. " + "Reunião às dez horas na sala de aula. " * 20)
+    text = "Hoje você tem três eventos. " + "Reunião às dez horas na sala de aula. " * 20
+    jarvis.say(text)
 
     assert len(synthesized) > 1
     assert played == [f"{n}.mp3" for n in range(len(synthesized))]
-    assert synthesized[-1].endswith("O resto está na tela, senhor.")
-    assert sum(len(text) for text in synthesized) < voice.SPOKEN_LIMIT + 60
+    assert " ".join(synthesized) == text.strip()
 
 
 def test_jarvis_voice_is_antonio_with_lower_pitch():

@@ -37,9 +37,6 @@ PAUSE_THRESHOLD = 1.6
 
 URL_PATTERN = re.compile(r"https?://\S+")
 
-# Respostas longas (agenda, Classroom) ficam inteiras na tela; em voz, só o começo.
-SPOKEN_LIMIT = 400
-
 # A fala é gerada em partes: a primeira toca enquanto a próxima é gerada, sem esperar o texto todo.
 PART_LIMIT = 180
 
@@ -106,14 +103,9 @@ def wake_model():
 
 
 def spoken(text):
-    """O texto como deve ser falado: links ficam só na tela, e respostas longas são cortadas."""
+    """O texto como deve ser falado: links ficam só na tela. Respostas longas são lidas inteiras, em partes."""
 
-    text = URL_PATTERN.sub("o link está na tela", text).replace("*", "").strip()
-
-    if len(text) > SPOKEN_LIMIT:
-        text = text[:SPOKEN_LIMIT].rsplit(" ", 1)[0] + "... O resto está na tela, senhor."
-
-    return text
+    return URL_PATTERN.sub("o link está na tela", text).replace("*", "").strip()
 
 
 def parts(text):
