@@ -270,7 +270,7 @@ def run_command(command, answer, text):
         except Exception as error:
             return f"Desculpe, senhor. Não consegui: {error}", None
 
-        pending_action = "Certo, senhor.", lambda: run_google(change), command
+        pending_action = "Certo, senhor.", lambda: run_google(change, service="mudar a agenda"), command
         return f"{question} Responda \"sim\" para confirmar.", None
 
     if command.startswith(GOOGLE_OPEN_PREFIX):
@@ -399,13 +399,13 @@ def classroom(text):
     return google_data.classroom_summary(google_data.services("classroom", "v1", text, only=only), text)
 
 
-def run_google(function, *args):
+def run_google(function, *args, service="consultar o Google"):
     try:
         return function(*args)
 
     except Exception as error:
-        print("ERRO NO GOOGLE:", repr(error))
-        return f"Desculpe, senhor. Não consegui consultar o Google: {error}"
+        print("ERRO:", repr(error))
+        return f"Desculpe, senhor. Não consegui {service}: {error}"
 
 
 def agenda(days, text, account_services=None):

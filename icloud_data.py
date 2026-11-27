@@ -212,9 +212,22 @@ def describe(event):
 
 
 def create_event(title, start, end, calendar_list=None):
-    calendar = (calendars() if calendar_list is None else calendar_list)[0]
-    event = calendar.save_event(dtstart=start, dtend=end, summary=title)
-    return f"Pronto, senhor. Criei {describe(event)} no calendário do iPhone."
+    """Grava no primeiro calendário que aceitar. Calendários assinados, compartilhados só para leitura ou de
+    lembretes recusam a gravação (Forbidden), e a ordem da lista do iCloud não diz qual é o principal."""
+
+    error = None
+
+    for calendar in calendars() if calendar_list is None else calendar_list:
+        try:
+            event = calendar.save_event(dtstart=start, dtend=end, summary=title)
+
+        except Exception as refused:
+            error = refused
+            continue
+
+        return f"Pronto, senhor. Criei {describe(event)} no calendário {calendar.name} do iPhone."
+
+    raise RuntimeError(f"nenhum calendário do iCloud aceitou o evento ({error})")
 
 
 def update_event(event, title="", start=None, end=None):

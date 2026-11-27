@@ -143,3 +143,31 @@ def test_event_without_start_is_skipped():
 
     assert "Dentista" in summary
     assert "Sem data" not in summary
+
+
+class FakeWritableCalendar:
+    def __init__(self, name, writable):
+        self.name, self.writable, self.saved = name, writable, []
+
+    def save_event(self, dtstart, dtend, summary):
+        if not self.writable:
+            raise PermissionError("Forbidden")
+        self.saved.append(summary)
+        return FakeEvent(dtstart, summary)
+
+
+def test_create_event_skips_read_only_calendars():
+    start = datetime.now().astimezone().replace(hour=8, minute=0, second=0, microsecond=0)
+    read_only, home = FakeWritableCalendar("Feriados", False), FakeWritableCalendar("Casa", True)
+
+    answer = icloud_data.create_event("Viagem", start, start, [read_only, home])
+
+    assert home.saved == ["Viagem"]
+    assert "calendário Casa" in answer
+
+
+def test_create_event_fails_when_no_calendar_accepts():
+    start = datetime.now().astimezone()
+
+    with pytest.raises(RuntimeError, match="nenhum calendário"):
+        icloud_data.create_event("Viagem", start, start, [FakeWritableCalendar("Feriados", False)])
